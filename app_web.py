@@ -11,10 +11,8 @@ import speech_recognition as sr
 from audio_recorder_streamlit import audio_recorder
 from fpdf import FPDF
 
-# ====================================================
 # 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS CSS
-# ====================================================
-st.set_page_config(page_title="Sistema de Biometría Fetal", page_icon="👶", layout="wide")
+st.set_page_config(page_title="Sistema de Biometría Fetal", layout="wide")
 
 # Ocultar menú de Streamlit y el ícono de GitHub para profesionalismo
 hide_menu_style = """
@@ -27,11 +25,10 @@ hide_menu_style = """
 """
 st.markdown(hide_menu_style, unsafe_allow_html=True)
 
-st.title("👶 Sistema de Biometría Fetal - Análisis Clínico")
+st.title("Sistema de Biometría Fetal - Análisis Clínico")
 
-# ====================================================
+
 # 2. CARGA DE MODELOS YOLO
-# ====================================================
 @st.cache_resource
 def cargar_modelos():
     return YOLO('best.pt'), YOLO('best_lf_ca.pt')
@@ -41,9 +38,8 @@ try:
 except Exception as e:
     st.error(f"Error cargando modelos: {e}")
 
-# ====================================================
+
 # 3. FUNCIONES DEL PROYECTO (INTACTAS)
-# ====================================================
 def leer_dicom_bytes(file_bytes):
     ds = pydicom.dcmread(pydicom.filebase.BytesIO(file_bytes))
     imagen = ds.pixel_array
@@ -106,7 +102,7 @@ def generar_pdf(operador, paci_nombre, paci_id, paci_fecha, dbp, cc, ca, lf, pef
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "1. Datos del Estudio", ln=True)
     pdf.set_font("helvetica", '', 11)
-    pdf.cell(0, 6, f"Medico Operador: {operador}", ln=True)
+    pdf.cell(0, 6, f"Operador: {operador}", ln=True)
     pdf.cell(0, 6, f"Paciente: {paci_nombre} | ID: {paci_id} | Fecha Estudio: {paci_fecha}", ln=True)
     pdf.ln(5)
     
@@ -144,30 +140,28 @@ def generar_pdf(operador, paci_nombre, paci_id, paci_fecha, dbp, cc, ca, lf, pef
     
     return bytes(pdf.output())
 
-# ====================================================
+
 # ETAPA 1: PANEL LATERAL - OPERADOR Y CARGA
-# ====================================================
-st.sidebar.header("👨‍⚕️ Datos del Operador")
-nombre_medico = st.sidebar.text_input("Nombre del Médico:", "Dr. ")
+st.sidebar.header("Datos del Operador")
+nombre_medico = st.sidebar.text_input("Nombre:", "Dr. ")
 especialidad = st.sidebar.text_input("Especialidad:", "Ginecología/Obstetricia")
 
 st.sidebar.divider()
-st.sidebar.header("📁 Carga de Archivos")
-archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
-procesar_btn = st.sidebar.button("⚡ Procesar Estudio Biométrico", type="primary", use_container_width=True)
+st.sidebar.header("Carga de Archivos")
+archivos_subidos = st.sidebar.file_uploader("Subir imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
+procesar_btn = st.sidebar.button("Procesar Estudio Biométrico", type="primary", use_container_width=True)
 
 # Variables globales de sesión para guardar datos entre interacciones
 if 'estudio_procesado' not in st.session_state:
     st.session_state.estudio_procesado = False
 
-# ====================================================
+
 # PROCESAMIENTO PRINCIPAL (SOLO AL PRESIONAR EL BOTÓN)
-# ====================================================
 if archivos_subidos and procesar_btn:
     candidatos = []
     paci_nombre, paci_id, paci_fecha = "", "", ""
     
-    with st.spinner("Procesando y extrayendo datos con IA..."):
+    with st.spinner("Procesando..."):
         for i, file in enumerate(archivos_subidos):
             bytes_data = file.read()
             try:
@@ -263,23 +257,23 @@ if archivos_subidos and procesar_btn:
             'pef_res': pef_res, 'eg_res': eg_res, 'img_head_res': img_head_res, 'img_body_res': img_body_res
         })
 
-# ====================================================
+
 # MOSTRAR RESULTADOS SI YA SE PROCESÓ
-# ====================================================
+
 if st.session_state.estudio_procesado:
     ss = st.session_state
     
     # ETAPA 2: DATOS DEL PACIENTE AUTOMÁTICOS
-    st.success("✅ DICOM procesado. Datos clínicos extraídos con éxito.")
+    st.success(" Datos clínicos extraídos con éxito.")
     col_p1, col_p2, col_p3 = st.columns(3)
-    col_p1.info(f"**👤 Paciente:** {ss.paci_nombre}")
-    col_p2.info(f"**🪪 ID:** {ss.paci_id}")
-    col_p3.info(f"**📅 Fecha Estudio:** {ss.paci_fecha}")
+    col_p1.info(f"**Paciente:** {ss.paci_nombre}")
+    col_p2.info(f"**ID:** {ss.paci_id}")
+    col_p3.info(f"**Fecha Estudio:** {ss.paci_fecha}")
 
     st.divider()
 
     # ETAPA 3: RESULTADOS BIOMÉTRICOS Y GRÁFICOS
-    st.subheader("📊 Resultados de Biometría")
+    st.subheader("Resultados de Biometría")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("DBP", f"{ss.val_dbp:.1f} mm" if ss.val_dbp else "--")
     c2.metric("CC", f"{ss.val_cc:.1f} mm" if ss.val_cc else "--")
@@ -287,10 +281,10 @@ if st.session_state.estudio_procesado:
     c4.metric("LF", f"{ss.val_lf:.1f} mm" if ss.val_lf else "--")
 
     b1, b2 = st.columns(2)
-    b1.success(f"**👶 Peso Fetal Estimado (PEF):** {ss.pef_res}")
-    b2.warning(f"**📅 Edad Gestacional (EG):** {ss.eg_res}")
+    b1.success(f"**Peso Fetal Estimado (PEF):** {ss.pef_res}")
+    b2.warning(f"**Edad Gestacional (EG):** {ss.eg_res}")
 
-    tab1, tab2 = st.tabs(["🧠 Cráneo (DBP/CC)", "🦴 Abdomen y Fémur (CA/LF)"])
+    tab1, tab2 = st.tabs(["Cráneo (DBP/CC)", "Abdomen y Fémur (CA/LF)"])
     with tab1:
         if ss.img_head_res is not None: st.image(ss.img_head_res, use_container_width=True)
     with tab2:
@@ -299,7 +293,7 @@ if st.session_state.estudio_procesado:
     st.divider()
 
     # ETAPA 4: DICTADO Y REPORTE PDF
-    st.subheader("🎤 Observaciones Médicas (Dictado por Voz)")
+    st.subheader("Observaciones Médicas")
     st.write("Presiona el ícono del micrófono, habla tus observaciones y espera un momento.")
     
     audio_bytes = audio_recorder(text="Clic para grabar", icon_size="2x")
@@ -317,7 +311,7 @@ if st.session_state.estudio_procesado:
 
     observaciones = st.text_area("Edita las observaciones para el reporte final:", value=texto_transcrito, height=100)
 
-    st.subheader("📄 Generación de Reporte")
+    st.subheader("Generación de Reporte")
     pdf_bytes = generar_pdf(
         nombre_medico, ss.paci_nombre, ss.paci_id, ss.paci_fecha, 
         ss.val_dbp, ss.val_cc, ss.val_ca, ss.val_lf, 
@@ -325,11 +319,11 @@ if st.session_state.estudio_procesado:
     )
     
     st.download_button(
-        label="📥 Descargar Reporte Clínico en PDF",
+        label="Descargar Reporte Clínico en PDF",
         data=pdf_bytes,
         file_name=f"Reporte_Biometria_{ss.paci_nombre.replace(' ','_')}.pdf",
         mime="application/pdf",
         type="primary"
     )
 elif not archivos_subidos:
-    st.info("👈 Por favor, carga los archivos DICOM en el panel izquierdo y haz clic en 'Procesar Estudio'.")
+    st.info("Carga los archivos DICOM en el panel izquierdo y haz clic en 'Procesar Estudio'.")
