@@ -10,11 +10,13 @@ import io
 import speech_recognition as sr
 from audio_recorder_streamlit import audio_recorder
 from fpdf import FPDF
+from datetime import datetime, timedelta
 
-# 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS CSS
+# ====================================================
+# 1. CONFIGURACIÓN Y ESTILOS
+# ====================================================
 st.set_page_config(page_title="Sistema de Biometría Fetal", layout="wide")
 
-# Ocultar menú de Streamlit y el ícono de GitHub para profesionalismo
 hide_menu_style = """
     <style>
     #MainMenu {visibility: hidden;}
@@ -25,10 +27,11 @@ hide_menu_style = """
 """
 st.markdown(hide_menu_style, unsafe_allow_html=True)
 
-st.title("Sistema de Biometría Fetal - Análisis Clínico")
+st.title(" Sistema de Biometría Fetal - Análisis Clínico")
 
-
+# ====================================================
 # 2. CARGA DE MODELOS YOLO
+# ====================================================
 @st.cache_resource
 def cargar_modelos():
     return YOLO('best.pt'), YOLO('best_lf_ca.pt')
@@ -38,15 +41,15 @@ try:
 except Exception as e:
     st.error(f"Error cargando modelos: {e}")
 
-
-# 3. FUNCIONES DEL PROYECTO (INTACTAS)
+# ====================================================
+# 3. FUNCIONES DEL PROYECTO
+# ====================================================
 def leer_dicom_bytes(file_bytes):
     ds = pydicom.dcmread(pydicom.filebase.BytesIO(file_bytes))
     imagen = ds.pixel_array
     if imagen.dtype != np.uint8:
         imagen = cv2.normalize(imagen, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     img_bgr = cv2.cvtColor(imagen, cv2.COLOR_GRAY2BGR) if len(imagen.shape) == 2 else cv2.cvtColor(imagen, cv2.COLOR_RGB2BGR)
-
     mm_per_px = float(ds.PixelSpacing[0]) if "PixelSpacing" in ds else (float(ds.ImagerPixelSpacing[0]) if "ImagerPixelSpacing" in ds else 0.17)
     return img_bgr, mm_per_px, ds
 
@@ -76,6 +79,7 @@ def calcular_biometria_fetal(dbp_mm, cc_mm, ca_mm, lf_mm):
     if ca_cm and 5.0 <= ca_cm <= 38.0: eg_list.append(8.14 + (0.753 * ca_cm) + (0.0036 * (ca_cm ** 2)))
     if lf_cm and 1.0 <= lf_cm <= 8.5: eg_list.append(10.35 + (2.46 * lf_cm) + (0.17 * (lf_cm ** 2)))
 
+    sem, dias = 0, 0
     eg_str = "--"
     if eg_list:
         eg_prom = float(np.mean(eg_list))
@@ -83,31 +87,67 @@ def calcular_biometria_fetal(dbp_mm, cc_mm, ca_mm, lf_mm):
         if dias == 7: sem += 1; dias = 0
         eg_str = f"{sem} semanas + {dias} días"
 
-    return f"{int(round(pef_g))} g" if pef_g else "--", eg_str
+    pef_str = f"{int(round(pef_g))} g" if pef_g else "--"
+    return pef_str, eg_str, sem, dias
 
 def extraer_datos_paciente(ds):
-    nombre = str(ds.PatientName).replace("^", " ") if 'PatientName' in ds else "Paciente Desconocido"
-    id_paciente = str(ds.PatientID) if 'PatientID' in ds else "Sin ID"
-    fecha = str(ds.StudyDate) if 'StudyDate' in ds else "Sin Fecha"
+    nombre = str(ds.PatientName).replace("^", " ") if 'PatientName' in ds else "Desconocido"
+    id_paciente = str(ds.PatientID) if 'PatientID' in ds else "--"
+    fecha = str(ds.StudyDate) if 'StudyDate' in ds else "--"
     if len(fecha) == 8: fecha = f"{fecha[6:8]}/{fecha[4:6]}/{fecha[0:4]}"
-    return nombre, id_paciente, fecha
+    
+    edad = str(ds.PatientAge) if 'PatientAge' in ds else "--"
+    # Limpiar formato de edad DICOM (ej: '028Y' -> '28 años')
+    if edad.endswith('Y'): edad = f"{int(edad[:-1])} años"
+    
+    sexo = str(ds.PatientSex) if 'PatientSex' in ds else "--"
+    modalidad = str(ds.Modality) if 'Modality' in ds else "US (Ultrasonido)"
+    
+    return nombre, id_paciente, fecha, edad, sexo, modalidad
 
-def generar_pdf(operador, paci_nombre, paci_id, paci_fecha, dbp, cc, ca, lf, pef, eg, obs, img_head, img_body):
+def calcular_fpp(fecha_estudio_str, sem, dias):
+    if sem == 0 or fecha_estudio_str == "--":
+        return "--"
+    try:
+        fecha_estudio = datetime.strptime(fecha_estudio_str, "%d/%m/%Y")
+        dias_embarazo_actual = (sem * 7) + dias
+        dias_restantes = 280 - dias_embarazo_actual
+        fecha_fpp = fecha_estudio + timedelta(days=dias_restantes)
+        return fecha_fpp.strftime("%d/%m/%Y")
+    except:
+        return "--"
+
+def generar_pdf(operador, medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fecha, modalidad, 
+                dbp, cc, ca, lf, pef, eg, obs, conclusiones, img_head, img_body):
     pdf = FPDF()
     pdf.add_page()
+    
+    # TITULO
     pdf.set_font("helvetica", 'B', 16)
     pdf.cell(0, 10, "REPORTE CLINICO DE BIOMETRIA FETAL", ln=True, align='C')
     pdf.ln(5)
     
+    # 1. DATOS DEL ESTUDIO
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "1. Datos del Estudio", ln=True)
     pdf.set_font("helvetica", '', 11)
-    pdf.cell(0, 6, f"Operador: {operador}", ln=True)
-    pdf.cell(0, 6, f"Paciente: {paci_nombre} | ID: {paci_id} | Fecha Estudio: {paci_fecha}", ln=True)
+    pdf.cell(0, 6, f"Medico Operador: {operador}", ln=True)
+    pdf.cell(0, 6, f"Medico Solicitante: {medico_solicitante}", ln=True)
+    pdf.cell(0, 6, f"Paciente: {paci_nombre}", ln=True)
+    pdf.cell(0, 6, f"Edad: {paci_edad}  |  Sexo: {paci_sexo}  |  Modalidad: {modalidad}", ln=True)
+    pdf.cell(0, 6, f"Fecha de Estudio: {paci_fecha}", ln=True)
     pdf.ln(5)
     
+    # 2. OBSERVACIONES MEDICAS (Antiguo 4)
     pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "2. Resultados Biometricos", ln=True)
+    pdf.cell(0, 8, "2. Observaciones Medicas", ln=True)
+    pdf.set_font("helvetica", '', 11)
+    pdf.multi_cell(0, 6, obs if obs.strip() else "Sin observaciones adicionales dictadas.")
+    pdf.ln(5)
+
+    # 3. RESULTADOS BIOMETRICOS (Antiguo 2)
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 8, "3. Resultados Biometricos", ln=True)
     pdf.set_font("helvetica", '', 11)
     pdf.cell(90, 6, f"DBP: {dbp:.1f} mm" if dbp else "DBP: --", ln=False)
     pdf.cell(90, 6, f"CC: {cc:.1f} mm" if cc else "CC: --", ln=True)
@@ -118,10 +158,9 @@ def generar_pdf(operador, paci_nombre, paci_id, paci_fecha, dbp, cc, ca, lf, pef
     pdf.cell(0, 6, f"Peso Estimado (PEF): {pef}  |  Edad Gestacional (EG): {eg}", ln=True)
     pdf.ln(5)
 
+    # 4. EVIDENCIAS ECOGRAFICAS (Antiguo 3)
     pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "3. Evidencia Ecografica", ln=True)
-    
-    # Insertar imágenes si existen usando PIL
+    pdf.cell(0, 8, "4. Evidencia Ecografica", ln=True)
     y_img = pdf.get_y()
     if img_head is not None:
         img_pil_h = Image.fromarray(img_head)
@@ -130,45 +169,46 @@ def generar_pdf(operador, paci_nombre, paci_id, paci_fecha, dbp, cc, ca, lf, pef
         img_pil_b = Image.fromarray(img_body)
         pdf.image(img_pil_b, x=110, y=y_img, w=75)
     
-    pdf.set_y(y_img + 60) # Bajar el cursor debajo de las imagenes
-    pdf.ln(10)
-    
+    pdf.set_y(y_img + 60) # Bajar el cursor
+    pdf.ln(5)
+
+    # 5. CONCLUSION ECOGRAFICA (NUEVO)
     pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "4. Observaciones Medicas", ln=True)
+    pdf.cell(0, 8, "5. Conclusion Ecografica", ln=True)
     pdf.set_font("helvetica", '', 11)
-    pdf.multi_cell(0, 6, obs if obs else "Sin observaciones adicionales.")
+    pdf.multi_cell(0, 6, conclusiones)
     
     return bytes(pdf.output())
 
-
-# ETAPA 1: PANEL LATERAL - OPERADOR Y CARGA
-st.sidebar.header("Datos del Operador")
-nombre_medico = st.sidebar.text_input("Nombre:", "Dr. ")
-especialidad = st.sidebar.text_input("Especialidad:", "Ginecología/Obstetricia")
+# ====================================================
+# ETAPA 1: PANEL LATERAL
+# ====================================================
+st.sidebar.header(" Datos del Personal")
+nombre_medico = st.sidebar.text_input("Médico Operador:", "Dr. ")
+medico_solicitante = st.sidebar.text_input("Médico Solicitante:", "Dr. ")
 
 st.sidebar.divider()
-st.sidebar.header("Carga de Archivos")
-archivos_subidos = st.sidebar.file_uploader("Subir imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
-procesar_btn = st.sidebar.button("Procesar Estudio Biométrico", type="primary", use_container_width=True)
+st.sidebar.header(" Carga de Archivos")
+archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
+procesar_btn = st.sidebar.button(" Procesar Estudio Biométrico", type="primary", use_container_width=True)
 
-# Variables globales de sesión para guardar datos entre interacciones
 if 'estudio_procesado' not in st.session_state:
     st.session_state.estudio_procesado = False
 
-
-# PROCESAMIENTO PRINCIPAL (SOLO AL PRESIONAR EL BOTÓN)
+# ====================================================
+# PROCESAMIENTO
+# ====================================================
 if archivos_subidos and procesar_btn:
     candidatos = []
-    paci_nombre, paci_id, paci_fecha = "", "", ""
+    paci_nombre, paci_id, paci_fecha, paci_edad, paci_sexo, modalidad = "", "", "", "", "", ""
     
-    with st.spinner("Procesando..."):
+    with st.spinner("Procesando DICOM y ejecutando IA..."):
         for i, file in enumerate(archivos_subidos):
             bytes_data = file.read()
             try:
                 img_orig, mm_per_px, ds = leer_dicom_bytes(bytes_data)
-                if i == 0: # Extraer datos del paciente del primer DICOM
-                    paci_nombre, paci_id, paci_fecha = extraer_datos_paciente(ds)
-                    
+                if i == 0: 
+                    paci_nombre, paci_id, paci_fecha, paci_edad, paci_sexo, modalidad = extraer_datos_paciente(ds)
                 img_limpia = limpiar_marcas_amarillas(img_orig)
             except Exception:
                 continue
@@ -190,7 +230,6 @@ if archivos_subidos and procesar_btn:
         val_dbp, val_cc, val_ca, val_lf = None, None, None, None
         img_head_res, img_body_res = None, None
 
-        # Tu código intacto de procesamiento de Cabeza (con corrección de línea DBP)
         if mejor_cabeza:
             img_orig, mm_per_px, _ = leer_dicom_bytes(mejor_cabeza['bytes'])
             img = limpiar_marcas_amarillas(img_orig)
@@ -217,7 +256,6 @@ if archivos_subidos and procesar_btn:
                     cv2.putText(img, f"CC: {val_cc:.1f}mm", (int(xc)-40, int(yc)+20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
                     img_head_res = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        # Tu código intacto de procesamiento de Cuerpo
         if mejor_cuerpo:
             img_orig, mm_per_px, _ = leer_dicom_bytes(mejor_cuerpo['bytes'])
             img = limpiar_marcas_amarillas(img_orig)
@@ -248,43 +286,48 @@ if archivos_subidos and procesar_btn:
                             cv2.putText(img, f"CA: {val_ca:.1f}mm", (int(xc)-40, int(yc)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
                 img_body_res = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        pef_res, eg_res = calcular_biometria_fetal(val_dbp, val_cc, val_ca, val_lf)
+        pef_res, eg_res, sem, dias = calcular_biometria_fetal(val_dbp, val_cc, val_ca, val_lf)
+        fpp_calculada = calcular_fpp(paci_fecha, sem, dias)
         
-        # Guardar todo en sesión para que no se borre al usar el micrófono
+        # Plantilla automática para Conclusiones
+        plantilla_conclusiones = (
+            f"1) Embarazo de {eg_res} x ECO (+/- 21 días)\n"
+            f"2) Presentación: Cefálica / Pélvica [Borrar la incorrecta]\n"
+            f"3) Feto único vivo, sexo: Femenino / Masculino / No visible\n"
+            f"4) Líquido Amniótico: Normohidramnios\n"
+            f"5) FPP (Fecha Probable de Parto): {fpp_calculada}"
+        )
+
         st.session_state.update({
-            'estudio_procesado': True, 'paci_nombre': paci_nombre, 'paci_id': paci_id, 'paci_fecha': paci_fecha,
+            'estudio_procesado': True, 'paci_nombre': paci_nombre, 'paci_id': paci_id, 
+            'paci_fecha': paci_fecha, 'paci_edad': paci_edad, 'paci_sexo': paci_sexo, 'modalidad': modalidad,
             'val_dbp': val_dbp, 'val_cc': val_cc, 'val_ca': val_ca, 'val_lf': val_lf,
-            'pef_res': pef_res, 'eg_res': eg_res, 'img_head_res': img_head_res, 'img_body_res': img_body_res
+            'pef_res': pef_res, 'eg_res': eg_res, 'img_head_res': img_head_res, 'img_body_res': img_body_res,
+            'plantilla_conclusiones': plantilla_conclusiones
         })
 
-
-# MOSTRAR RESULTADOS SI YA SE PROCESÓ
-
+# ====================================================
+# INTERFAZ DE RESULTADOS
+# ====================================================
 if st.session_state.estudio_procesado:
     ss = st.session_state
     
-    # ETAPA 2: DATOS DEL PACIENTE AUTOMÁTICOS
-    st.success(" Datos clínicos extraídos con éxito.")
+    st.success(" Datos clínicos y biométricos extraídos con éxito.")
     col_p1, col_p2, col_p3 = st.columns(3)
-    col_p1.info(f"**Paciente:** {ss.paci_nombre}")
-    col_p2.info(f"**ID:** {ss.paci_id}")
-    col_p3.info(f"**Fecha Estudio:** {ss.paci_fecha}")
+    col_p1.info(f"** Paciente:** {ss.paci_nombre}\n\n**Edad:** {ss.paci_edad}")
+    col_p2.info(f"** ID:** {ss.paci_id}\n\n**Sexo:** {ss.paci_sexo}")
+    col_p3.info(f"** Fecha:** {ss.paci_fecha}\n\n**Mod:** {ss.modalidad}")
 
     st.divider()
 
-    # ETAPA 3: RESULTADOS BIOMÉTRICOS Y GRÁFICOS
-    st.subheader("Resultados de Biometría")
+    st.subheader(" Resultados de Biometría")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("DBP", f"{ss.val_dbp:.1f} mm" if ss.val_dbp else "--")
     c2.metric("CC", f"{ss.val_cc:.1f} mm" if ss.val_cc else "--")
     c3.metric("CA", f"{ss.val_ca:.1f} mm" if ss.val_ca else "--")
     c4.metric("LF", f"{ss.val_lf:.1f} mm" if ss.val_lf else "--")
 
-    b1, b2 = st.columns(2)
-    b1.success(f"**Peso Fetal Estimado (PEF):** {ss.pef_res}")
-    b2.warning(f"**Edad Gestacional (EG):** {ss.eg_res}")
-
-    tab1, tab2 = st.tabs(["Cráneo (DBP/CC)", "Abdomen y Fémur (CA/LF)"])
+    tab1, tab2 = st.tabs(["🧠 Cráneo", "🦴 Abdomen y Fémur"])
     with tab1:
         if ss.img_head_res is not None: st.image(ss.img_head_res, use_container_width=True)
     with tab2:
@@ -292,38 +335,45 @@ if st.session_state.estudio_procesado:
 
     st.divider()
 
-    # ETAPA 4: DICTADO Y REPORTE PDF
-    st.subheader("Observaciones Médicas")
-    st.write("Presiona el ícono del micrófono, habla tus observaciones y espera un momento.")
+    col_izq, col_der = st.columns(2)
     
-    audio_bytes = audio_recorder(text="Clic para grabar", icon_size="2x")
-    texto_transcrito = ""
+    with col_izq:
+        st.subheader(" Observaciones Médicas")
+        st.write("Haz clic en el micrófono para iniciar, y clic nuevamente para detener el dictado.")
+        audio_bytes = audio_recorder(text="Grabar audio", icon_size="2x")
+        texto_transcrito = ""
+        
+        if audio_bytes:
+            with st.spinner("Transcribiendo audio..."):
+                try:
+                    r = sr.Recognizer()
+                    with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
+                        audio_data = r.record(source)
+                        texto_transcrito = r.recognize_google(audio_data, language="es-ES")
+                except Exception:
+                    st.error("Error al transcribir. Asegúrate de hablar claro.")
+        
+        observaciones = st.text_area("Texto de Observaciones:", value=texto_transcrito, height=150)
+
+    with col_der:
+        st.subheader(" Conclusión Ecográfica")
+        st.write("Rellena o modifica los hallazgos clínicos:")
+        conclusiones_texto = st.text_area("Conclusiones para el PDF:", value=ss.plantilla_conclusiones, height=150)
+
+    st.divider()
+    st.subheader(" Generación de Reporte")
     
-    if audio_bytes:
-        with st.spinner("Transcribiendo audio..."):
-            try:
-                r = sr.Recognizer()
-                with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
-                    audio_data = r.record(source)
-                    texto_transcrito = r.recognize_google(audio_data, language="es-ES")
-            except Exception as e:
-                st.error("Error al transcribir. Asegúrate de hablar claro.")
-
-    observaciones = st.text_area("Edita las observaciones para el reporte final:", value=texto_transcrito, height=100)
-
-    st.subheader("Generación de Reporte")
     pdf_bytes = generar_pdf(
-        nombre_medico, ss.paci_nombre, ss.paci_id, ss.paci_fecha, 
+        nombre_medico, medico_solicitante, ss.paci_nombre, ss.paci_edad, ss.paci_sexo, ss.paci_fecha, ss.modalidad,
         ss.val_dbp, ss.val_cc, ss.val_ca, ss.val_lf, 
-        ss.pef_res, ss.eg_res, observaciones, ss.img_head_res, ss.img_body_res
+        ss.pef_res, ss.eg_res, observaciones, conclusiones_texto, ss.img_head_res, ss.img_body_res
     )
     
     st.download_button(
-        label="Descargar Reporte Clínico en PDF",
+        label="📥 Descargar Reporte Clínico en PDF",
         data=pdf_bytes,
         file_name=f"Reporte_Biometria_{ss.paci_nombre.replace(' ','_')}.pdf",
         mime="application/pdf",
-        type="primary"
+        type="primary",
+        use_container_width=True
     )
-elif not archivos_subidos:
-    st.info("Carga los archivos DICOM en el panel izquierdo y haz clic en 'Procesar Estudio'.")
