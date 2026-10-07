@@ -293,7 +293,7 @@ if archivos_subidos and procesar_btn:
         # Plantilla automática para Conclusiones
         plantilla_conclusiones = (
             f"1) Embarazo de {eg_res} x ECO (+/- 21 días)\n"
-            f"2) Presentación: Cefálica / Pélvica [Borrar la incorrecta]\n"
+            f"2) Presentación: Cefálica \n"
             f"3) Feto único vivo, sexo: Femenino / Masculino / No visible\n"
             f"4) Líquido Amniótico: Normohidramnios\n"
             f"5) FPP (Fecha Probable de Parto): {fpp_calculada}"
