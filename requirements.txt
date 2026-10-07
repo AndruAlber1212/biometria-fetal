@@ -7,3 +7,4 @@ Pillow
 fpdf2
 SpeechRecognition
 audio-recorder-streamlit
+psycopg2-binary
