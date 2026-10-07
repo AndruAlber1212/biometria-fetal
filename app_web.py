@@ -371,7 +371,7 @@ if st.session_state.estudio_procesado:
     )
     
     st.download_button(
-        label="📥 Descargar Reporte Clínico en PDF",
+        label="Descargar Reporte Clínico en PDF",
         data=pdf_bytes,
         file_name=f"Reporte_Biometria_{ss.paci_nombre.replace(' ','_')}.pdf",
         mime="application/pdf",
