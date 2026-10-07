@@ -117,7 +117,7 @@ def calcular_fpp(fecha_estudio_str, sem, dias):
     except:
         return "--"
 
-def generar_pdf(operador, medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fecha, modalidad, 
+def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fecha, modalidad, 
                 dbp, cc, ca, lf, pef, eg, obs, conclusiones, img_head, img_body):
     pdf = FPDF()
     pdf.add_page()
@@ -131,7 +131,6 @@ def generar_pdf(operador, medico_solicitante, paci_nombre, paci_edad, paci_sexo,
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "1. Datos del Estudio", ln=True)
     pdf.set_font("helvetica", '', 11)
-    pdf.cell(0, 6, f"Medico Operador: {operador}", ln=True)
     pdf.cell(0, 6, f"Medico Solicitante: {medico_solicitante}", ln=True)
     pdf.cell(0, 6, f"Paciente: {paci_nombre}", ln=True)
     pdf.cell(0, 6, f"Edad: {paci_edad}  |  Sexo: {paci_sexo}  |  Modalidad: {modalidad}", ln=True)
@@ -187,7 +186,6 @@ def generar_pdf(operador, medico_solicitante, paci_nombre, paci_edad, paci_sexo,
 # ETAPA 1: PANEL LATERAL
 # ====================================================
 st.sidebar.header(" Datos del Personal")
-nombre_medico = st.sidebar.text_input("Médico Operador:", "Dr. ")
 medico_solicitante = st.sidebar.text_input("Médico Solicitante:", "Dr. ")
 
 st.sidebar.divider()
