@@ -136,6 +136,9 @@ def generar_pdf(operador, medico_solicitante, paci_nombre, paci_edad, paci_sexo,
     pdf.cell(0, 6, f"Paciente: {paci_nombre}", ln=True)
     pdf.cell(0, 6, f"Edad: {paci_edad}  |  Sexo: {paci_sexo}  |  Modalidad: {modalidad}", ln=True)
     pdf.cell(0, 6, f"Fecha de Estudio: {paci_fecha}", ln=True)
+    # LÍNEAS NUEVAS AÑADIDAS:
+    fecha_revision = datetime.now().strftime("%d/%m/%Y")
+    pdf.cell(0, 6, f"Fecha de Revision: {fecha_revision}", ln=True)
     pdf.ln(5)
     
     # 2. OBSERVACIONES MEDICAS (Antiguo 4)
