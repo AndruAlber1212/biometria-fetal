@@ -265,22 +265,6 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.multi_cell(0, 6, conclusiones)
     
     return bytes(pdf.output())
-# Justo después de generar el PDF con éxito:
-guardado_ok = guardar_estudio_automatico(
-    op_nom=st.session_state.operador_nombres,
-    op_ape=st.session_state.operador_apellidos,
-    op_ci=st.session_state.operador_ci,
-    pac_nom=ss.paci_nombre,
-    pac_id="N/A", # O la variable de ID que uses
-    pac_edad=ss.paci_edad,
-    fecha_est=str(ss.paci_fecha),
-    pef=str(ss.pef_res),
-    eg=str(ss.eg_res),
-    fpp="Calculada", # O tu variable de FPP
-    pdf_link="Reporte_Generado.pdf"
-)
-if guardado_ok:
-        st.success("💾 ¡Estudio guardado automáticamente en PostgreSQL!")
 
 # ====================================================
 # ETAPA 1: PANEL LATERAL
@@ -504,3 +488,20 @@ if st.session_state.estudio_procesado:
         type="primary",
         use_container_width=True
     )
+    # === PEGA ESTO AQUÍ ABAJO ===
+    guardado_ok = guardar_estudio_automatico(
+        op_nom=st.session_state.operador_nombres,
+        op_ape=st.session_state.operador_apellidos,
+        op_ci=st.session_state.operador_ci,
+        pac_nom=ss.paci_nombre,
+        pac_id="N/A",
+        pac_edad=ss.paci_edad,
+        fecha_est=str(ss.paci_fecha),
+        pef=str(ss.pef_res),
+        eg=str(ss.eg_res),
+        fpp="Calculada",
+        pdf_link="reporte_biometria_fetal.pdf"
+    )
+    if guardado_ok:
+        st.success("💾 ¡Estudio guardado automáticamente en PostgreSQL!")
+    # === FIN DE LO QUE DEBES PEGAR ===
