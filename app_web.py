@@ -13,7 +13,34 @@ from fpdf import FPDF
 from datetime import datetime, timedelta
 import streamlit as st
 import psycopg2
-
+# ==============================================================================
+# PEGA ESTA FUNCIÓN ARRIBA: Junto a tu función "verificar_usuario"
+# ==============================================================================
+def guardar_estudio_en_db(fecha_est, nom_pac, edad_pac, id_pac, pef, eg, fpp, medico):
+    try:
+        conn = psycopg2.connect(
+            host="TU_HOST_DE_NEON",
+            database="TU_DATABASE",
+            user="TU_USER",
+            password="TU_PASSWORD",
+            port="5432",
+            sslmode="require"
+        )
+        cur = conn.cursor()
+        
+        sql = """
+            INSERT INTO estudios_ecograficos 
+            (fecha_estudio, nombre_paciente, edad_paciente, id_paciente, peso_fetal, edad_gestacional, fecha_probable_parto, medico_responsable) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cur.execute(sql, (fecha_est, nom_pac, edad_pac, id_pac, pef, eg, fpp, medico))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error al guardar en BD: {e}")
+        return False
 def verificar_usuario(user, password):
     try:
         conn = psycopg2.connect(
@@ -57,31 +84,7 @@ if not st.session_state.autenticado:
     st.stop()
 
 # A partir de aquí va todo tu código normal de la app...
-import pandas as pd
 
-# Botón / Checkbox en la barra lateral para ver los estudios guardados
-if st.sidebar.checkbox("Ver Base de Datos de Estudios"):
-    st.subheader("Historial de Estudios Ecográficos Registrados")
-    try:
-        conn = psycopg2.connect(
-            host="TU_HOST_DE_NEON",
-            database="TU_DATABASE",
-            user="TU_USER",
-            password="TU_PASSWORD",
-            port="5432",
-            sslmode="require"
-        )
-        # Consultamos todos los estudios ordenados del más nuevo al más viejo
-        df_estudios = pd.read_sql("SELECT * FROM estudios_ecograficos ORDER BY id DESC", conn)
-        conn.close()
-        
-        if not df_estudios.empty:
-            st.dataframe(df_estudios, use_container_width=True)
-        else:
-            st.info("Aún no hay estudios guardados en la base de datos.")
-            
-    except Exception as e:
-        st.error(f"Error al cargar la base de datos: {e}")
 # ====================================================
 # 1. CONFIGURACIÓN Y ESTILOS
 # ====================================================
@@ -251,7 +254,25 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.multi_cell(0, 6, conclusiones)
     
     return bytes(pdf.output())
-
+# ==============================================================================
+# PEGA ESTO AQUí: Justo abajo de donde muestras los resultados de la IA y el reporte PDF
+# ==============================================================================
+if st.button(" Guardar estudio en la Base de Datos"):
+    # Aquí asegúrate de pasar las variables reales que extraes de tu DICOM y de tus cálculos
+    exito = guardar_estudio_en_db(
+        fecha_est="2026-10-10", 
+        nom_pac="Paciente de Prueba",   
+        edad_pac="28 años",
+        id_pac="001",
+        pef="1450 g",             
+        eg="29 semanas",          
+        fpp="2026-12-15",
+        medico=st.session_state.nombre_usuario 
+    )
+    if exito:
+        st.success("¡Estudio guardado correctamente en PostgreSQL!")
+    else:
+        st.error("Hubo un error al guardar el estudio.")
 # ====================================================
 # ETAPA 1: PANEL LATERAL
 # ====================================================
@@ -265,7 +286,32 @@ procesar_btn = st.sidebar.button(" Procesar Estudio Biométrico", type="primary"
 
 if 'estudio_procesado' not in st.session_state:
     st.session_state.estudio_procesado = False
+# ==============================================================================
+# PEGA EL PASO 2 AQUÍ: Justo debajo de la barra lateral o al final de tus imports
+# ==============================================================================
+import pandas as pd
 
+if st.sidebar.checkbox("Ver Base de Datos de Estudios"):
+    st.subheader("Historial de Estudios Ecográficos Registrados")
+    try:
+        conn = psycopg2.connect(
+            host="TU_HOST_DE_NEON",
+            database="TU_DATABASE",
+            user="TU_USER",
+            password="TU_PASSWORD",
+            port="5432",
+            sslmode="require"
+        )
+        df_estudios = pd.read_sql("SELECT * FROM estudios_ecograficos ORDER BY id DESC", conn)
+        conn.close()
+        
+        if not df_estudios.empty:
+            st.dataframe(df_estudios, use_container_width=True)
+        else:
+            st.info("Aún no hay estudios guardados en la base de datos.")
+            
+    except Exception as e:
+        st.error(f"Error al cargar la base de datos: {e}")
 # ====================================================
 # PROCESAMIENTO
 # ====================================================
@@ -398,7 +444,7 @@ if st.session_state.estudio_procesado:
     c3.metric("CA", f"{ss.val_ca:.1f} mm" if ss.val_ca else "--")
     c4.metric("LF", f"{ss.val_lf:.1f} mm" if ss.val_lf else "--")
 
-    tab1, tab2 = st.tabs(["🧠 Cráneo", "🦴 Abdomen y Fémur"])
+    tab1, tab2 = st.tabs(["Cráneo", "Abdomen y Fémur"])
     with tab1:
         if ss.img_head_res is not None: st.image(ss.img_head_res, use_container_width=True)
     with tab2:
