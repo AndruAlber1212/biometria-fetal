@@ -11,7 +11,52 @@ import speech_recognition as sr
 from audio_recorder_streamlit import audio_recorder
 from fpdf import FPDF
 from datetime import datetime, timedelta
+import streamlit as st
+import psycopg2
 
+def verificar_usuario(user, password):
+    try:
+        conn = psycopg2.connect(
+            host="ep-empty-mouse-b5pz0137-pooler.c-7.us-east-2.aws.neon.tech",
+            database="neondb",
+            user="neondb_owner",
+            password="npg_5NYJUZt3PoRf",
+            port="5432",
+            sslmode="require"
+        )
+        cur = conn.cursor()
+        cur.execute("SELECT nombre FROM usuarios WHERE usuario = %s AND password = %s", (user, password))
+        resultado = cur.fetchone()
+        conn.close()
+        
+        if resultado:
+            return True, resultado[0]
+        return False, None
+    except Exception as e:
+        st.error(f"Error de conexión: {e}")
+        return False, None
+
+# Control de sesión
+if 'autenticado' not in st.session_state:
+    st.session_state.autenticado = False
+
+if not st.session_state.autenticado:
+    st.title("Acceso al Sistema - Biometría Fetal")
+    col1, _ = st.columns([1, 2])
+    with col1:
+        u = st.text_input("Usuario")
+        p = st.text_input("Contraseña", type="password")
+        if st.button("Ingresar"):
+            valido, nombre = verificar_usuario(u, p)
+            if valido:
+                st.session_state.autenticado = True
+                st.session_state.nombre_usuario = nombre
+                st.rerun()
+            else:
+                st.error("Credenciales incorrectas")
+    st.stop()
+
+# A partir de aquí va todo tu código normal de la app...
 # ====================================================
 # 1. CONFIGURACIÓN Y ESTILOS
 # ====================================================
