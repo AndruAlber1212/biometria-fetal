@@ -206,29 +206,6 @@ if 'estudio_procesado' not in st.session_state:
 # ==============================================================================
 # PEGA EL PASO 2 AQUÍ: Justo debajo de la barra lateral o al final de tus imports
 # ==============================================================================
-import pandas as pd
-
-if st.sidebar.checkbox("Ver Base de Datos de Estudios"):
-    st.subheader("Historial de Estudios Ecográficos Registrados")
-    try:
-        conn = psycopg2.connect(
-            host="TU_HOST_DE_NEON",
-            database="TU_DATABASE",
-            user="TU_USER",
-            password="TU_PASSWORD",
-            port="5432",
-            sslmode="require"
-        )
-        df_estudios = pd.read_sql("SELECT * FROM estudios_ecograficos ORDER BY id DESC", conn)
-        conn.close()
-        
-        if not df_estudios.empty:
-            st.dataframe(df_estudios, use_container_width=True)
-        else:
-            st.info("Aún no hay estudios guardados en la base de datos.")
-            
-    except Exception as e:
-        st.error(f"Error al cargar la base de datos: {e}")
 # ====================================================
 # PROCESAMIENTO
 # ====================================================
