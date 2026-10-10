@@ -473,7 +473,7 @@ if st.session_state.estudio_procesado:
     st.subheader(" Generación de Reporte")
     
     pdf_bytes = generar_pdf(
-        medico_solicitante, ss.paci_nombre, ss.paci_edad, ss.paci_sexo, ss.paci_fecha, ss.modalidad,
+        f"{st.session_state.operador_nombres} {st.session_state.operador_apellidos}", st.session_state.operador_ci,
         ss.val_dbp, ss.val_cc, ss.val_ca, ss.val_lf, 
         ss.pef_res, ss.eg_res, observaciones, conclusiones_texto, ss.img_head_res, ss.img_body_res
     )
