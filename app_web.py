@@ -13,6 +13,150 @@ from fpdf import FPDF
 from datetime import datetime, timedelta
 import streamlit as st
 import psycopg2
+
+import streamlit as st
+import psycopg2
+import pandas as pd
+
+# URL de conexión a Neon (Pon tu URL real aquí)
+URL_DB = "postgresql://neondb_owner:npg_5NYJUZt3PoRf@ep-empty-mouse-b5pz0137-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+
+def conectar_db():
+    return psycopg2.connect(URL_DB)
+
+# Inicializar estados de sesión
+if 'autenticado' not in st.session_state:
+    st.session_state.autenticado = False
+if 'operador_registrado' not in st.session_state:
+    st.session_state.operador_registrado = False
+
+# ==========================================
+# FASE 1: PANTALLA DE LOGIN
+# ==========================================
+if not st.session_state.autenticado:
+    st.title("🔒 Acceso al Sistema - Biometría Fetal")
+    col1, _ = st.columns([1, 2])
+    with col1:
+        u = st.text_input("Usuario")
+        p = st.text_input("Contraseña", type="password")
+        if st.button("Iniciar Sesión"):
+            try:
+                conn = conectar_db()
+                cur = conn.cursor()
+                cur.execute("SELECT nombre FROM usuarios WHERE usuario = %s AND password = %s", (u, p))
+                res = cur.fetchone()
+                conn.close()
+                if res:
+                    st.session_state.autenticado = True
+                    st.session_state.user_default = res[0]
+                    st.rerun()
+                else:
+                    st.error("Usuario o contraseña incorrectos")
+            except Exception as e:
+                st.error(f"Error de conexión: {e}")
+    st.stop()
+
+# ==========================================
+# FASE 2: REGISTRO DEL OPERADOR (MÉDICO EN TURNO)
+# ==========================================
+if not st.session_state.operador_registrado:
+    st.title("🩺 Registro del Operador en Turno")
+    st.info("Ingrese los datos del profesional médico responsable antes de iniciar las ecografías.")
+    
+    with st.form("form_operador"):
+        nombre_op = st.text_input("Nombres y Apellidos del Médico", value=st.session_state.get('user_default', ''))
+        ci_op = st.text_input("Cédula de Identidad (CI)")
+        
+        btn_continuar = st.form_submit_button("Ingresar al Sistema Clínico")
+        if btn_continuar:
+            if nombre_op and ci_op:
+                st.session_state.operador_nombre = nombre_op
+                st.session_state.operador_ci = ci_op
+                st.session_state.operador_registrado = True
+                st.rerun()
+            else:
+                st.warning("Por favor complete el Nombre y el CI del operador.")
+    st.stop()
+
+# ==========================================
+# FASE 3: APLICACIÓN PRINCIPAL (CARGA DICOM + BD)
+# ==========================================
+
+# Botón en la barra lateral para ver la Base de Datos de Estudios en tabla
+if st.sidebar.checkbox("📂 Ver Base de Datos de Estudios"):
+    st.subheader("📋 Historial General de Estudios Clínicos")
+    try:
+        conn = conectar_db()
+        df_estudios = pd.read_sql("SELECT * FROM estudios_ecograficos ORDER BY id DESC", conn)
+        conn.close()
+        if not df_estudios.empty:
+            st.dataframe(df_estudios, use_container_width=True)
+        else:
+            st.info("No hay estudios registrados todavía.")
+    except Exception as e:
+        st.error(f"Error al consultar la base de datos: {e}")
+
+# Información del operador en sesión
+st.sidebar.markdown(f"**Médico en Turno:** {st.session_state.operador_nombre} (CI: {st.session_state.operador_ci})")
+if st.sidebar.button("Cerrar Sesión / Cambiar Operador"):
+    st.session_state.autenticado = False
+    st.session_state.operador_registrado = False
+    st.rerun()
+
+st.title("🖥️ Sistema de Análisis de Biometría Fetal (SaMD)")
+
+# Función automática para guardar en la BD al procesar
+def guardar_estudio_automatico(op_nom, op_ci, pac_nom, pac_id, pac_edad, fecha_est, pef, eg, fpp, pdf_link):
+    try:
+        conn = conectar_db()
+        cur = conn.cursor()
+        sql = """
+            INSERT INTO estudios_ecograficos 
+            (operador_nombre, operador_ci, paciente_nombre, paciente_id, paciente_edad, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto, pdf_generado) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cur.execute(sql, (op_nom, op_ci, pac_nom, pac_id, pac_edad, fecha_est, pef, eg, fpp, pdf_link))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Error al guardar automático en BD: {e}")
+        return False
+
+# --- AQUÍ CONTINÚA TU CÓDIGO ACTUAL DE CARGA DE ARCHIVOS DICOM, YOLO Y REPORTE PDF ---
+# Ejemplo de simulación de procesamiento automático que ya deberías integrar con tus variables reales:
+uploaded_file = st.file_uploader("Subir archivo DICOM ecográfico", type=["dcm"])
+
+if uploaded_file is not None:
+    st.success("¡Archivo DICOM cargado con éxito! (Simulando extracción de metadatos y IA...)")
+    
+    # Supongamos que aquí obtienes los datos de tu DICOM y de la IA:
+    paciente_nombre_ext = "Carla Mendoza"
+    paciente_id_ext = "987654"
+    paciente_edad_ext = "30 años"
+    fecha_estudio_ext = "2026-10-10"
+    peso_fetal_ext = "1520 g"
+    edad_gestacional_ext = "30 semanas"
+    fpp_ext = "2026-12-20"
+    pdf_url_o_nombre = "Reporte_Biometria_Carla_Mendoza.pdf"
+    
+    # GUARDADO AUTOMÁTICO EN LA BASE DE DATOS SIN BOTONES EXTRA
+    guardado_ok = guardar_estudio_automatico(
+        st.session_state.operador_nombre,
+        st.session_state.operador_ci,
+        paciente_nombre_ext,
+        paciente_id_ext,
+        paciente_edad_ext,
+        fecha_estudio_ext,
+        peso_fetal_ext,
+        edad_gestacional_ext,
+        fpp_ext,
+        pdf_url_o_nombre
+    )
+    
+    if guardado_ok:
+        st.success("✅ Estudio procesado y guardado automáticamente en la Base de Datos PostgreSQL.")
 # ==============================================================================
 # PEGA ESTA FUNCIÓN ARRIBA: Junto a tu función "verificar_usuario"
 # ==============================================================================
@@ -41,47 +185,7 @@ def guardar_estudio_en_db(fecha_est, nom_pac, edad_pac, id_pac, pef, eg, fpp, me
     except Exception as e:
         print(f"Error al guardar en BD: {e}")
         return False
-def verificar_usuario(user, password):
-    try:
-        conn = psycopg2.connect(
-            host="ep-empty-mouse-b5pz0137-pooler.c-7.us-east-2.aws.neon.tech",
-            database="neondb",
-            user="neondb_owner",
-            password="npg_5NYJUZt3PoRf",
-            port="5432",
-            sslmode="require"
-        )
-        cur = conn.cursor()
-        cur.execute("SELECT nombre FROM usuarios WHERE usuario = %s AND password = %s", (user, password))
-        resultado = cur.fetchone()
-        conn.close()
-        
-        if resultado:
-            return True, resultado[0]
-        return False, None
-    except Exception as e:
-        st.error(f"Error de conexión: {e}")
-        return False, None
 
-# Control de sesión
-if 'autenticado' not in st.session_state:
-    st.session_state.autenticado = False
-
-if not st.session_state.autenticado:
-    st.title("Acceso al Sistema - Biometría Fetal")
-    col1, _ = st.columns([1, 2])
-    with col1:
-        u = st.text_input("Usuario")
-        p = st.text_input("Contraseña", type="password")
-        if st.button("Ingresar"):
-            valido, nombre = verificar_usuario(u, p)
-            if valido:
-                st.session_state.autenticado = True
-                st.session_state.nombre_usuario = nombre
-                st.rerun()
-            else:
-                st.error("Credenciales incorrectas")
-    st.stop()
 
 # A partir de aquí va todo tu código normal de la app...
 
@@ -254,25 +358,6 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.multi_cell(0, 6, conclusiones)
     
     return bytes(pdf.output())
-# ==============================================================================
-# PEGA ESTO AQUí: Justo abajo de donde muestras los resultados de la IA y el reporte PDF
-# ==============================================================================
-if st.button(" Guardar estudio en la Base de Datos"):
-    # Aquí asegúrate de pasar las variables reales que extraes de tu DICOM y de tus cálculos
-    exito = guardar_estudio_en_db(
-        fecha_est="2026-10-10", 
-        nom_pac="Paciente de Prueba",   
-        edad_pac="28 años",
-        id_pac="001",
-        pef="1450 g",             
-        eg="29 semanas",          
-        fpp="2026-12-15",
-        medico=st.session_state.nombre_usuario 
-    )
-    if exito:
-        st.success("¡Estudio guardado correctamente en PostgreSQL!")
-    else:
-        st.error("Hubo un error al guardar el estudio.")
 # ====================================================
 # ETAPA 1: PANEL LATERAL
 # ====================================================
