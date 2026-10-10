@@ -57,6 +57,25 @@ if not st.session_state.autenticado:
             except Exception as e:
                 st.error(f"Error de conexión: {e}")
     st.stop()
+# --- FASE 2: REGISTRO DEL OPERADOR ---
+if not st.session_state.operador_registrado:
+    st.title("🩺 Registro del Operador en Turno")
+    with st.form("form_operador"):
+        nombres_op = st.text_input("Nombres")
+        apellidos_op = st.text_input("Apellidos")
+        ci_op = st.text_input("Cédula de Identidad (CI)")
+        
+        btn_continuar = st.form_submit_button("Ingresar al Sistema Clínico")
+        if btn_continuar:
+            if nombres_op and apellidos_op and ci_op:
+                st.session_state.operador_nombres = nombres_op
+                st.session_state.operador_apellidos = apellidos_op
+                st.session_state.operador_ci = ci_op
+                st.session_state.operador_registrado = True
+                st.rerun()
+            else:
+                st.warning("Complete Nombres, Apellidos y CI.")
+    st.stop()
 # --- FUNCIÓN DE GUARDADO AUTOMÁTICO EN BD ---
 def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, pac_id, pac_edad, fecha_est, pef, eg, fpp, pdf_link):
     try:
