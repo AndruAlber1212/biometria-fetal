@@ -159,33 +159,7 @@ if uploaded_file is not None:
         st.success("✅ Estudio procesado y guardado automáticamente en la Base de Datos PostgreSQL.")
 # ==============================================================================
 # PEGA ESTA FUNCIÓN ARRIBA: Junto a tu función "verificar_usuario"
-# ==============================================================================
-def guardar_estudio_en_db(fecha_est, nom_pac, edad_pac, id_pac, pef, eg, fpp, medico):
-    try:
-        conn = psycopg2.connect(
-            host="TU_HOST_DE_NEON",
-            database="TU_DATABASE",
-            user="TU_USER",
-            password="TU_PASSWORD",
-            port="5432",
-            sslmode="require"
-        )
-        cur = conn.cursor()
-        
-        sql = """
-            INSERT INTO estudios_ecograficos 
-            (fecha_estudio, nombre_paciente, edad_paciente, id_paciente, peso_fetal, edad_gestacional, fecha_probable_parto, medico_responsable) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        cur.execute(sql, (fecha_est, nom_pac, edad_pac, id_pac, pef, eg, fpp, medico))
-        conn.commit()
-        cur.close()
-        conn.close()
-        return True
-    except Exception as e:
-        print(f"Error al guardar en BD: {e}")
-        return False
-
+# =============================================================================
 
 # A partir de aquí va todo tu código normal de la app...
 
