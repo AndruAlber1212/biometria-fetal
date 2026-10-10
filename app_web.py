@@ -268,8 +268,31 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
 # ====================================================
 # ETAPA 1: PANEL LATERAL
 # ====================================================
-st.sidebar.header(" Datos del Personal")
-medico_solicitante = st.sidebar.text_input("Médico Solicitante:", "Dr. ")
+st.sidebar.title("Panel de Control")
+st.sidebar.markdown(f"**Médico:** {st.session_state.operador_nombres} {st.session_state.operador_apellidos}")
+st.sidebar.markdown(f"**CI:** {st.session_state.operador_ci}")
+
+ver_db = st.sidebar.checkbox("📂 Ver Base de Datos de Estudios")
+
+if st.sidebar.button("Cerrar Sesión / Cambiar Operador"):
+    st.session_state.autenticado = False
+    st.session_state.operador_registrado = False
+    st.rerun()
+
+# Si activan la casilla, muestra la tabla y detiene la ejecución de la app principal momentáneamente
+if ver_db:
+    st.subheader("📋 Historial General de Estudios Clínicos (PostgreSQL)")
+    try:
+        conn = conectar_db()
+        df_estudios = pd.read_sql("SELECT * FROM estudios_ecograficos ORDER BY id DESC", conn)
+        conn.close()
+        if not df_estudios.empty:
+            st.dataframe(df_estudios, use_container_width=True)
+        else:
+            st.info("No hay estudios registrados todavía.")
+    except Exception as e:
+        st.error(f"Error al consultar la base de datos: {e}")
+    st.stop()
 
 st.sidebar.divider()
 st.sidebar.header(" Carga de Archivos")
