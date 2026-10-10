@@ -57,6 +57,31 @@ if not st.session_state.autenticado:
     st.stop()
 
 # A partir de aquí va todo tu código normal de la app...
+import pandas as pd
+
+# Botón / Checkbox en la barra lateral para ver los estudios guardados
+if st.sidebar.checkbox("Ver Base de Datos de Estudios"):
+    st.subheader("Historial de Estudios Ecográficos Registrados")
+    try:
+        conn = psycopg2.connect(
+            host="TU_HOST_DE_NEON",
+            database="TU_DATABASE",
+            user="TU_USER",
+            password="TU_PASSWORD",
+            port="5432",
+            sslmode="require"
+        )
+        # Consultamos todos los estudios ordenados del más nuevo al más viejo
+        df_estudios = pd.read_sql("SELECT * FROM estudios_ecograficos ORDER BY id DESC", conn)
+        conn.close()
+        
+        if not df_estudios.empty:
+            st.dataframe(df_estudios, use_container_width=True)
+        else:
+            st.info("Aún no hay estudios guardados en la base de datos.")
+            
+    except Exception as e:
+        st.error(f"Error al cargar la base de datos: {e}")
 # ====================================================
 # 1. CONFIGURACIÓN Y ESTILOS
 # ====================================================
