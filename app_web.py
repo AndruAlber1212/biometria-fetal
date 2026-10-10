@@ -18,9 +18,6 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 
-# URL de conexión a Neon (Pon tu URL real aquí)
-URL_DB = "postgresql://neondb_owner:npg_5NYJUZt3PoRf@ep-empty-mouse-b5pz0137-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-
 # ====================================================
 # 1. CONFIGURACIÓN Y ESTILOS
 # ====================================================
