@@ -106,7 +106,18 @@ def obtener_estudios_db():
     df = pd.read_sql(query, conn)
     conn.close()
     return df
-
+def eliminar_estudio_db(estudio_id):
+    try:
+        conn = conectar_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM estudios_ecograficos WHERE id = %s", (estudio_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Error al eliminar de la base de datos: {e}")
+        return False
 # ====================================================
 # 1. CONFIGURACIÓN Y ESTILOS
 # ====================================================
