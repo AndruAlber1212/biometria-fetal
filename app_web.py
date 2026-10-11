@@ -508,7 +508,7 @@ if st.session_state.estudio_procesado:
             fecha_est=str(ss.get('paci_fecha', '')),
             pef=str(ss.get('pef_res', '')),
             eg=str(ss.get('eg_res', '')),
-            fpp=str(fpp_calculada),
+            fpp=str(fpp_a_guardar),
             pdf_link="reporte_biometria_fetal.pdf"
         )
         
