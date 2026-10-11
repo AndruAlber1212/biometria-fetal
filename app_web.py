@@ -58,7 +58,7 @@ if not st.session_state.autenticado:
     st.stop()
 # --- FASE 2: REGISTRO DEL OPERADOR ---
 if not st.session_state.operador_registrado:
-    st.title("🩺 Registro del Operador en Turno")
+    st.title("Registro de Operador")
     with st.form("form_operador"):
         nombres_op = st.text_input("Nombres")
         apellidos_op = st.text_input("Apellidos")
@@ -271,20 +271,11 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
 # ETAPA 1: PANEL LATERAL
 # ====================================================
 st.sidebar.title("Panel de Control")
-st.sidebar.markdown(f"**Médico:** {st.session_state.operador_nombres} {st.session_state.operador_apellidos}")
-st.sidebar.markdown(f"**CI:** {st.session_state.operador_ci}")
-
-ver_db = st.sidebar.checkbox("📂 Ver Base de Datos de Estudios")
-
-if st.sidebar.button("Cerrar Sesión / Cambiar Operador"):
-    st.session_state.autenticado = False
-    st.session_state.operador_registrado = False
-    st.session_state.estudio_ya_guardado = False
-    st.rerun()
+st.sidebar.markdown(f"**Dr.:** {st.session_state.operador_nombres} {st.session_state.operador_apellidos}")
 
 # Si activan la casilla, muestra la tabla y detiene la ejecución de la app principal momentáneamente
 if ver_db:
-    st.subheader("📋 Historial General de Estudios Clínicos (PostgreSQL)")
+    st.subheader("Historial General de Estudios Clínicos")
     try:
         conn = conectar_db()
         df_estudios = pd.read_sql("SELECT * FROM estudios_ecograficos ORDER BY id DESC", conn)
@@ -304,6 +295,14 @@ procesar_btn = st.sidebar.button(" Procesar Estudio Biométrico", type="primary"
 
 if 'estudio_procesado' not in st.session_state:
     st.session_state.estudio_procesado = False
+
+ver_db = st.sidebar.checkbox("Ver Base de Datos de Estudios")
+
+if st.sidebar.button("Cerrar Sesión / Cambiar Operador"):
+    st.session_state.autenticado = False
+    st.session_state.operador_registrado = False
+    st.session_state.estudio_ya_guardado = False
+    st.rerun()
 # ==============================================================================
 # PEGA EL PASO 2 AQUÍ: Justo debajo de la barra lateral o al final de tus imports
 # ==============================================================================
