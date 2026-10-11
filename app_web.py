@@ -423,11 +423,11 @@ if archivos_subidos and procesar_btn:
 if st.session_state.estudio_procesado:
     ss = st.session_state
     
-    st.success(" Datos clínicos y biométricos extraídos con éxito.")
+    st.success(" Datos clínicos extraídos con éxito.")
     col_p1, col_p2, col_p3 = st.columns(3)
-    col_p1.info(f"** Paciente:** {ss.paci_nombre}\n\n**Edad:** {ss.paci_edad}")
-    col_p2.info(f"** ID:** {ss.paci_id}\n\n**Sexo:** {ss.paci_sexo}")
-    col_p3.info(f"** Fecha:** {ss.paci_fecha}\n\n**Mod:** {ss.modalidad}")
+    col_p1.info(f"Paciente:{ss.paci_nombre}\n\nEdad: {ss.paci_edad}")
+    col_p2.info(f"ID: {ss.paci_id}\n\nSexo: {ss.paci_sexo}")
+    col_p3.info(f" Fecha: {ss.paci_fecha}\n\nModalidad: {ss.modalidad}")
 
     st.divider()
 
@@ -517,4 +517,4 @@ if st.session_state.estudio_procesado:
         if guardado_ok:
             # Marcamos en la sesión que ya se guardó para que no se repita al recargar
             ss.ultimo_estudio_guardado = clave_estudio_actual
-            st.success("💾 ¡Estudio guardado automáticamente en PostgreSQL!")
+            st.success("Estudio guardado")
