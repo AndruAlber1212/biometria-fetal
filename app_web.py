@@ -301,6 +301,25 @@ st.sidebar.header(" Carga de Archivos")
 archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
 procesar_btn = st.sidebar.button(" Procesar Estudio Biométrico", type="primary", use_container_width=True)
 ver_db = st.sidebar.checkbox("Ver Base de Datos de Estudios")
+st.subheader("📋 Registros Guardados en PostgreSQL (Neon)")
+df_estudios = obtener_estudios_db()
+if not df_estudios.empty:
+        # Recorremos cada fila para mostrarla ordenada en paneles desplegables
+    for index, row in df_estudios.iterrows():
+        with st.expander(f"Paciente: {row['paciente_nombre']} | Operador: {row['operador_nombre']} | Fecha: {row['fecha_estudio']}"):
+            st.write(f"**Peso Fetal (PEF):** {row['peso_fetal']}")
+            st.write(f"**Edad Gestacional:** {row['edad_gestacional']}")
+            st.write(f"**FPP:** {row['fecha_probable_parto']}")
+            st.write(f"**Revisión:** {row['fecha_revision']}")
+                
+                # Botón individual de eliminación para cada fila
+            if st.button(f"🗑️ Eliminar registro ID {row['id']}", key=f"del_{row['id']}"):
+                eliminado_ok = eliminar_estudio_db(row['id'])
+                if eliminado_ok:
+                    st.success(f"Estudio del paciente {row['paciente_nombre']} eliminado correctamente.")
+                    st.rerun() # Actualiza la pantalla y la base de datos al instante
+else:
+    st.info("No hay estudios registrados en la base de datos todavía.")
 if 'estudio_procesado' not in st.session_state:
     st.session_state.estudio_procesado = False
 
@@ -325,26 +344,6 @@ if ver_db:
     st.stop()
 
 # Sección para mostrar y administrar la base de datos
-st.subheader("📋 Registros Guardados en PostgreSQL (Neon)")
-df_estudios = obtener_estudios_db()
-if not df_estudios.empty:
-        # Recorremos cada fila para mostrarla ordenada en paneles desplegables
-    for index, row in df_estudios.iterrows():
-        with st.expander(f"Paciente: {row['paciente_nombre']} | Operador: {row['operador_nombre']} | Fecha: {row['fecha_estudio']}"):
-            st.write(f"**Peso Fetal (PEF):** {row['peso_fetal']}")
-            st.write(f"**Edad Gestacional:** {row['edad_gestacional']}")
-            st.write(f"**FPP:** {row['fecha_probable_parto']}")
-            st.write(f"**Revisión:** {row['fecha_revision']}")
-                
-                # Botón individual de eliminación para cada fila
-            if st.button(f"🗑️ Eliminar registro ID {row['id']}", key=f"del_{row['id']}"):
-                eliminado_ok = eliminar_estudio_db(row['id'])
-                if eliminado_ok:
-                    st.success(f"Estudio del paciente {row['paciente_nombre']} eliminado correctamente.")
-                    st.rerun() # Actualiza la pantalla y la base de datos al instante
-else:
-    st.info("No hay estudios registrados en la base de datos todavía.")
-
 # ==============================================================================
 # PEGA EL PASO 2 AQUÍ: Justo debajo de la barra lateral o al final de tus imports
 # ==============================================================================
