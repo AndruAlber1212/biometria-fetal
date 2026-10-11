@@ -492,17 +492,26 @@ if st.session_state.estudio_procesado:
     # === PEGA ESTO AQUÍ ABAJO ===
     semanas_val = ss.get('eg_semanas', ss.get('semanas', 0))
     dias_val = ss.get('eg_dias', ss.get('dias', 0))
-    
-    guardado_ok = guardar_estudio_automatico(
-        op_nom=st.session_state.get('operador_nombres', ''),
-        op_ape=st.session_state.get('operador_apellidos', ''),
-        op_ci=st.session_state.get('operador_ci', ''),
-        pac_nom=ss.get('paci_nombre', 'Desconocido'),
-        fecha_est=str(ss.get('paci_fecha', '')),
-        pef=str(ss.get('pef_res', '')),
-        eg=str(ss.get('eg_res', '')),
-        fpp=str(calcular_fpp(ss.get('paci_fecha', ''), semanas_val, dias_val)),
-        pdf_link="reporte_biometria_fetal.pdf"
-    )
-    if guardado_ok:
-        st.success("Estudio guardado")
+    fecha_revision_bolivia = (datetime.now() - timedelta(hours=4)).strftime("%d/%m/%Y %H:%M:%S")
+
+    # 2. Calculamos la FPP de forma segura
+    fpp_calculada_val = calcular_fpp(ss.get('paci_fecha', ''), semanas_val, dias_val)
+
+    # 3. CONTROL DE DUPLICADOS: Verificamos si este estudio ya se guardó en la sesión actual
+    if not ss.get('estudio_ya_guardado', False):
+        guardado_ok = guardar_estudio_automatico(
+            op_nom=st.session_state.get('operador_nombres', ''),
+            op_ape=st.session_state.get('operador_apellidos', ''),
+            op_ci=st.session_state.get('operador_ci', ''),
+            pac_nom=ss.get('paci_nombre', 'Desconocido'),
+            fecha_est=str(ss.get('paci_fecha', '')),
+            pef=str(ss.get('pef_res', '')),
+            eg=str(ss.get('eg_res', '')),
+            fpp=str(fpp_calculada_val),
+            pdf_link="reporte_biometria_fetal.pdf"
+        )
+        
+        if guardado_ok:
+            # Marcamos en la sesión que ya se guardó para que no se repita al recargar
+            ss.estudio_ya_guardado = True
+            st.success("💾 ¡Estudio guardado automáticamente en PostgreSQL!")
