@@ -501,19 +501,19 @@ if st.session_state.estudio_procesado:
     clave_estudio_actual = f"{ss.get('paci_nombre', '')}_{ss.get('paci_fecha', '')}"
     # Verificamos si este estudio en específico ya fue guardado en la sesión
     if ss.get('ultimo_estudio_guardado') != clave_estudio_actual:
-    if not ss.get('estudio_ya_guardado', False):
-        fpp_a_guardar = locals().get('fpp_calculada', ss.get('fpp_resultado', 'No disponible'))
-        guardado_ok = guardar_estudio_automatico(
-            op_nom=st.session_state.get('operador_nombres', ''),
-            op_ape=st.session_state.get('operador_apellidos', ''),
-            op_ci=st.session_state.get('operador_ci', ''),
-            pac_nom=ss.get('paci_nombre', 'Desconocido'),
-            fecha_est=str(ss.get('paci_fecha', '')),
-            pef=str(ss.get('pef_res', '')),
-            eg=str(ss.get('eg_res', '')),
-            fpp=str(fpp_a_guardar),
-            pdf_link="reporte_biometria_fetal.pdf"
-        )
+        if not ss.get('estudio_ya_guardado', False):
+            fpp_a_guardar = locals().get('fpp_calculada', ss.get('fpp_resultado', 'No disponible'))
+            guardado_ok = guardar_estudio_automatico(
+                op_nom=st.session_state.get('operador_nombres', ''),
+                op_ape=st.session_state.get('operador_apellidos', ''),
+                op_ci=st.session_state.get('operador_ci', ''),
+                pac_nom=ss.get('paci_nombre', 'Desconocido'),
+                fecha_est=str(ss.get('paci_fecha', '')),
+                pef=str(ss.get('pef_res', '')),
+                eg=str(ss.get('eg_res', '')),
+                fpp=str(fpp_a_guardar),
+                pdf_link="reporte_biometria_fetal.pdf"
+            )
         
         if guardado_ok:
             # Marcamos en la sesión que ya se guardó para que no se repita al recargar
