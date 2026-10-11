@@ -514,5 +514,5 @@ if st.session_state.estudio_procesado:
         
         if guardado_ok:
             # Marcamos en la sesión que ya se guardó para que no se repita al recargar
-            ss.estudio_ya_guardado = True
+            
             st.success("💾 ¡Estudio guardado automáticamente en PostgreSQL!")
