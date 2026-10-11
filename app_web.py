@@ -97,27 +97,6 @@ def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, e
         st.error(f"Error al guardar en BD: {e}")
         return False
 
-import pandas as pd
-
-# Función para traer los registros de Neon (asegúrate de incluir el 'id' en el SELECT)
-def obtener_estudios_db():
-    conn = conectar_db()
-    query = "SELECT id, operador_nombre, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto, fecha_revision FROM estudios_ecograficos ORDER BY id DESC"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    return df
-def eliminar_estudio_db(estudio_id):
-    try:
-        conn = conectar_db()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM estudios_ecograficos WHERE id = %s", (estudio_id,))
-        conn.commit()
-        cur.close()
-        conn.close()
-        return True
-    except Exception as e:
-        st.error(f"Error al eliminar de la base de datos: {e}")
-        return False
 # ====================================================
 # 1. CONFIGURACIÓN Y ESTILOS
 # ====================================================
@@ -324,27 +303,6 @@ if ver_db:
     except Exception as e:
         st.error(f"Error al consultar la base de datos: {e}")
     st.stop()
-    st.subheader("📋 Registros Guardados en PostgreSQL (Neon)")
-    df_estudios = obtener_estudios_db()
-    if not df_estudios.empty:
-        # Recorremos cada fila para mostrarla ordenada en paneles desplegables
-        for index, row in df_estudios.iterrows():
-            with st.expander(f"Paciente: {row['paciente_nombre']} | Operador: {row['operador_nombre']} | Fecha: {row['fecha_estudio']}"):
-                st.write(f"**Peso Fetal (PEF):** {row['peso_fetal']}")
-                st.write(f"**Edad Gestacional:** {row['edad_gestacional']}")
-                st.write(f"**FPP:** {row['fecha_probable_parto']}")
-                st.write(f"**Revisión:** {row['fecha_revision']}")
-                
-                # Botón individual de eliminación para cada fila
-                if st.button(f"🗑️ Eliminar registro ID {row['id']}", key=f"del_{row['id']}"):
-                    eliminado_ok = eliminar_estudio_db(row['id'])
-                    if eliminado_ok:
-                        st.success(f"Estudio del paciente {row['paciente_nombre']} eliminado correctamente.")
-                        st.rerun() # Actualiza la pantalla y la base de datos al instante
-    else:
-        st.info("No hay estudios registrados en la base de datos todavía.")
-
-
 
 # Sección para mostrar y administrar la base de datos
 # ==============================================================================
