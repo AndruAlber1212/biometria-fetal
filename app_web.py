@@ -34,7 +34,6 @@ if 'operador_registrado' not in st.session_state:
 
 # ==========================================
 # FASE 1: PANTALLA DE LOGIN
-# ==========================================
 if not st.session_state.autenticado:
     st.title(" Acceso al Sistema - Biometría Fetal")
     col1, _ = st.columns([1, 2])
