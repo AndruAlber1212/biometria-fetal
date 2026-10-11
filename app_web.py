@@ -272,7 +272,7 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
 # ====================================================
 st.sidebar.title("Panel de Control")
 st.sidebar.markdown(f"**Dr.:** {st.session_state.operador_nombres} {st.session_state.operador_apellidos}")
-
+ver_db = st.sidebar.checkbox("Ver Base de Datos de Estudios")
 # Si activan la casilla, muestra la tabla y detiene la ejecución de la app principal momentáneamente
 if ver_db:
     st.subheader("Historial General de Estudios Clínicos")
@@ -295,8 +295,6 @@ procesar_btn = st.sidebar.button(" Procesar Estudio Biométrico", type="primary"
 
 if 'estudio_procesado' not in st.session_state:
     st.session_state.estudio_procesado = False
-
-ver_db = st.sidebar.checkbox("Ver Base de Datos de Estudios")
 
 if st.sidebar.button("Cerrar Sesión / Cambiar Operador"):
     st.session_state.autenticado = False
