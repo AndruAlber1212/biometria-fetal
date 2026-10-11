@@ -279,6 +279,7 @@ ver_db = st.sidebar.checkbox("📂 Ver Base de Datos de Estudios")
 if st.sidebar.button("Cerrar Sesión / Cambiar Operador"):
     st.session_state.autenticado = False
     st.session_state.operador_registrado = False
+    ss.estudio_ya_guardado = False
     st.rerun()
 
 # Si activan la casilla, muestra la tabla y detiene la ejecución de la app principal momentáneamente
