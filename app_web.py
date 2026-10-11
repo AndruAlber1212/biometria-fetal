@@ -490,15 +490,18 @@ if st.session_state.estudio_procesado:
         use_container_width=True
     )
     # === PEGA ESTO AQUÍ ABAJO ===
+    semanas_val = ss.get('eg_semanas', ss.get('semanas', 0))
+    dias_val = ss.get('eg_dias', ss.get('dias', 0))
+    
     guardado_ok = guardar_estudio_automatico(
-        op_nom=st.session_state.operador_nombres,
-        op_ape=st.session_state.operador_apellidos,
-        op_ci=st.session_state.operador_ci,
-        pac_nom=ss.paci_nombre,
-        fecha_est=str(ss.paci_fecha),
-        pef=str(ss.pef_res),
-        eg=str(ss.eg_res),
-        fpp=str(calcular_fpp(ss.paci_fecha, ss.eg_semanas, ss.eg_dias)),
+        op_nom=st.session_state.get('operador_nombres', ''),
+        op_ape=st.session_state.get('operador_apellidos', ''),
+        op_ci=st.session_state.get('operador_ci', ''),
+        pac_nom=ss.get('paci_nombre', 'Desconocido'),
+        fecha_est=str(ss.get('paci_fecha', '')),
+        pef=str(ss.get('pef_res', '')),
+        eg=str(ss.get('eg_res', '')),
+        fpp=str(calcular_fpp(ss.get('paci_fecha', ''), semanas_val, dias_val)),
         pdf_link="reporte_biometria_fetal.pdf"
     )
     if guardado_ok:
