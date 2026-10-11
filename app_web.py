@@ -13,7 +13,6 @@ from fpdf import FPDF
 from datetime import datetime, timedelta
 import streamlit as st
 import psycopg2
-import datetime
 import streamlit as st
 import psycopg2
 import pandas as pd
