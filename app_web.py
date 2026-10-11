@@ -221,7 +221,7 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.cell(0, 6, f"Edad: {paci_edad}  |  Sexo: {paci_sexo}  |  Modalidad: {modalidad}", ln=True)
     pdf.cell(0, 6, f"Fecha de Estudio: {paci_fecha}", ln=True)
     # LÍNEAS NUEVAS AÑADIDAS:
-    fecha_revision = datetime.now().strftime("%d/%m/%Y")
+    fecha_revision = datetime.datetime.now().strftime("%d/%m/%Y")
     pdf.cell(0, 6, f"Fecha de Revision: {fecha_revision}", ln=True)
     pdf.ln(5)
     
