@@ -13,7 +13,7 @@ from fpdf import FPDF
 from datetime import datetime, timedelta
 import streamlit as st
 import psycopg2
-
+import datetime
 import streamlit as st
 import psycopg2
 import pandas as pd
@@ -76,18 +76,20 @@ if not st.session_state.operador_registrado:
             else:
                 st.warning("Complete Nombres, Apellidos y CI.")
     st.stop()
-# --- FUNCIÓN DE GUARDADO AUTOMÁTICO EN BD ---
-def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, pac_id, pac_edad, fecha_est, pef, eg, fpp, pdf_link):
+# --- FUNCIÓN DE GUARDADO AUTOMÁTICO EN BD --
+def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, eg, fpp, pdf_link):
     try:
         conn = conectar_db()
         cur = conn.cursor()
+        # Obtenemos la fecha y hora actual exacta en formato legible: DD/MM/YYYY HH:MM:SS
+        fecha_revision_exacta = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         sql = """
             INSERT INTO estudios_ecograficos 
-            (operador_nombre, operador_ci, paciente_nombre, paciente_id, paciente_edad, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto, pdf_generado) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (operador_nombre, operador_ci, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto, pdf_generado, fecha_revision) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         operador_completo = f"{op_nom} {op_ape}"
-        cur.execute(sql, (operador_completo, op_ci, pac_nom, pac_id, pac_edad, fecha_est, pef, eg, fpp, pdf_link))
+        cur.execute(sql, (operador_completo, op_ci, pac_nom, fecha_est, pef, eg, fpp, pdf_link, fecha_revision_exacta))
         conn.commit()
         cur.close()
         conn.close()
@@ -494,14 +496,11 @@ if st.session_state.estudio_procesado:
         op_ape=st.session_state.operador_apellidos,
         op_ci=st.session_state.operador_ci,
         pac_nom=ss.paci_nombre,
-        pac_id="N/A",
-        pac_edad=ss.paci_edad,
         fecha_est=str(ss.paci_fecha),
         pef=str(ss.pef_res),
         eg=str(ss.eg_res),
-        fpp="Calculada",
+        fpp=(ss.fpp_res),
         pdf_link="reporte_biometria_fetal.pdf"
     )
     if guardado_ok:
-        st.success("💾 ¡Estudio guardado automáticamente en PostgreSQL!")
-    # === FIN DE LO QUE DEBES PEGAR ===
+        st.success("Estudio guardado")
