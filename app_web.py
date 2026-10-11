@@ -497,9 +497,9 @@ if st.session_state.estudio_procesado:
 
     # 2. Calculamos la FPP de forma segura
     fpp_calculada_val = calcular_fpp(ss.get('paci_fecha', ''), semanas_val, dias_val)
-    fpp_a_guardar = locals().get('fpp_calculada', ss.get('fpp_resultado', 'No disponible'))
     # 3. CONTROL DE DUPLICADOS: Verificamos si este estudio ya se guardó en la sesión actual
     if not ss.get('estudio_ya_guardado', False):
+        fpp_a_guardar = locals().get('fpp_calculada', ss.get('fpp_resultado', 'No disponible'))
         guardado_ok = guardar_estudio_automatico(
             op_nom=st.session_state.get('operador_nombres', ''),
             op_ape=st.session_state.get('operador_apellidos', ''),
