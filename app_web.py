@@ -81,7 +81,7 @@ def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, e
         conn = conectar_db()
         cur = conn.cursor()
         # Obtenemos la fecha y hora actual exacta en formato legible: DD/MM/YYYY HH:MM:SS
-        fecha_revision_exacta = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        fecha_revision_exacta = datetime.now().strftime("%d/%m/%Y")
         sql = """
             INSERT INTO estudios_ecograficos 
             (operador_nombre, operador_ci, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto, pdf_generado, fecha_revision) 
@@ -507,7 +507,7 @@ if st.session_state.estudio_procesado:
             fecha_est=str(ss.get('paci_fecha', '')),
             pef=str(ss.get('pef_res', '')),
             eg=str(ss.get('eg_res', '')),
-            fpp=str(fpp_calculada_val),
+            fpp=str(fpp_calculada),
             pdf_link="reporte_biometria_fetal.pdf"
         )
         
