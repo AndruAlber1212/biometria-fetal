@@ -498,6 +498,9 @@ if st.session_state.estudio_procesado:
     # 2. Calculamos la FPP de forma segura
     fpp_calculada_val = calcular_fpp(ss.get('paci_fecha', ''), semanas_val, dias_val)
     # 3. CONTROL DE DUPLICADOS: Verificamos si este estudio ya se guardó en la sesión actual
+    clave_estudio_actual = f"{ss.get('paci_nombre', '')}_{ss.get('paci_fecha', '')}"
+    # Verificamos si este estudio en específico ya fue guardado en la sesión
+    if ss.get('ultimo_estudio_guardado') != clave_estudio_actual:
     if not ss.get('estudio_ya_guardado', False):
         fpp_a_guardar = locals().get('fpp_calculada', ss.get('fpp_resultado', 'No disponible'))
         guardado_ok = guardar_estudio_automatico(
@@ -514,4 +517,5 @@ if st.session_state.estudio_procesado:
         
         if guardado_ok:
             # Marcamos en la sesión que ya se guardó para que no se repita al recargar
+            ss.ultimo_estudio_guardado = clave_estudio_actual
             st.success("💾 ¡Estudio guardado automáticamente en PostgreSQL!")
