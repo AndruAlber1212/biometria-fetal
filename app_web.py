@@ -272,8 +272,23 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
 # ====================================================
 st.sidebar.title("Panel de Control")
 st.sidebar.markdown(f"**Dr.:** {st.session_state.operador_nombres} {st.session_state.operador_apellidos}")
-ver_db = st.sidebar.checkbox("Ver Base de Datos de Estudios")
+
 # Si activan la casilla, muestra la tabla y detiene la ejecución de la app principal momentáneamente
+
+st.sidebar.divider()
+st.sidebar.header(" Carga de Archivos")
+archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
+procesar_btn = st.sidebar.button(" Procesar Estudio Biométrico", type="primary", use_container_width=True)
+ver_db = st.sidebar.checkbox("Ver Base de Datos de Estudios")
+if 'estudio_procesado' not in st.session_state:
+    st.session_state.estudio_procesado = False
+
+if st.sidebar.button("Cerrar Sesión / Cambiar Operador"):
+    st.session_state.autenticado = False
+    st.session_state.operador_registrado = False
+    st.session_state.estudio_ya_guardado = False
+    st.rerun()
+
 if ver_db:
     st.subheader("Historial General de Estudios Clínicos")
     try:
@@ -288,19 +303,6 @@ if ver_db:
         st.error(f"Error al consultar la base de datos: {e}")
     st.stop()
 
-st.sidebar.divider()
-st.sidebar.header(" Carga de Archivos")
-archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
-procesar_btn = st.sidebar.button(" Procesar Estudio Biométrico", type="primary", use_container_width=True)
-
-if 'estudio_procesado' not in st.session_state:
-    st.session_state.estudio_procesado = False
-
-if st.sidebar.button("Cerrar Sesión / Cambiar Operador"):
-    st.session_state.autenticado = False
-    st.session_state.operador_registrado = False
-    st.session_state.estudio_ya_guardado = False
-    st.rerun()
 # ==============================================================================
 # PEGA EL PASO 2 AQUÍ: Justo debajo de la barra lateral o al final de tus imports
 # ==============================================================================
