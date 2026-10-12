@@ -17,22 +17,18 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 
-# Configuración de página de Streamlit
 st.set_page_config(page_title="Sistema de Biometría Fetal (SaMD)", layout="wide")
-
-# URL de conexión a Neon
 URL_DB = "postgresql://neondb_owner:npg_5NYJUZt3PoRf@ep-empty-mouse-b5pz0137-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require"
 
 def conectar_db():
     return psycopg2.connect(URL_DB)
 
-# Inicializar estados de sesión
+
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 if 'operador_registrado' not in st.session_state:
     st.session_state.operador_registrado = False
 
-# ==========================================
 # FASE 1: PANTALLA DE LOGIN
 if not st.session_state.autenticado:
     st.title(" Acceso al Sistema - Biometría Fetal")
@@ -55,7 +51,7 @@ if not st.session_state.autenticado:
             except Exception as e:
                 st.error(f"Error de conexión: {e}")
     st.stop()
-# --- FASE 2: REGISTRO DEL OPERADOR ---
+# FASE 2: REGISTRO DEL OPERADOR
 if not st.session_state.operador_registrado:
     st.title("Registro de Operador")
     with st.form("form_operador"):
@@ -74,12 +70,11 @@ if not st.session_state.operador_registrado:
             else:
                 st.warning("Complete Nombres, Apellidos y CI.")
     st.stop()
-# --- FUNCIÓN DE GUARDADO AUTOMÁTICO EN BD --
+# GUARDADO EN BD 
 def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, eg, fpp, pdf_link):
     try:
         conn = conectar_db()
         cur = conn.cursor()
-        # Obtenemos la fecha y hora actual exacta en formato legible: DD/MM/YYYY HH:MM:SS
         fecha_revision_exacta = datetime.now().strftime("%d/%m/%Y")
         sql = """
             INSERT INTO estudios_ecograficos 
@@ -96,9 +91,7 @@ def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, e
         st.error(f"Error al guardar en BD: {e}")
         return False
 
-# ====================================================
 # 1. CONFIGURACIÓN Y ESTILOS
-# ====================================================
 st.set_page_config(page_title="Sistema de Biometría Fetal", layout="wide")
 
 hide_menu_style = """
@@ -113,9 +106,7 @@ st.markdown(hide_menu_style, unsafe_allow_html=True)
 
 st.title(" Sistema de Biometría Fetal - Análisis Clínico")
 
-# ====================================================
 # 2. CARGA DE MODELOS YOLO
-# ====================================================
 @st.cache_resource
 def cargar_modelos():
     return YOLO('best.pt'), YOLO('best_lf_ca.pt')
@@ -125,9 +116,7 @@ try:
 except Exception as e:
     st.error(f"Error cargando modelos: {e}")
 
-# ====================================================
 # 3. FUNCIONES DEL PROYECTO
-# ====================================================
 def leer_dicom_bytes(file_bytes):
     ds = pydicom.dcmread(pydicom.filebase.BytesIO(file_bytes))
     imagen = ds.pixel_array
@@ -219,19 +208,18 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.cell(0, 6, f"Paciente: {paci_nombre}", ln=True)
     pdf.cell(0, 6, f"Edad: {paci_edad}  |  Sexo: {paci_sexo}  |  Modalidad: {modalidad}", ln=True)
     pdf.cell(0, 6, f"Fecha de Estudio: {paci_fecha}", ln=True)
-    # LÍNEAS NUEVAS AÑADIDAS:
     fecha_revision = datetime.now().strftime("%d/%m/%Y")
     pdf.cell(0, 6, f"Fecha de Revision: {fecha_revision}", ln=True)
     pdf.ln(5)
     
-    # 2. OBSERVACIONES MEDICAS (Antiguo 4)
+    # 2. OBSERVACIONES MEDICAS
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "2. Observaciones Medicas", ln=True)
     pdf.set_font("helvetica", '', 11)
     pdf.multi_cell(0, 6, obs if obs.strip() else "Sin observaciones adicionales dictadas.")
     pdf.ln(5)
 
-    # 3. RESULTADOS BIOMETRICOS (Antiguo 2)
+    # 3. RESULTADOS BIOMETRICOS
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "3. Resultados Biometricos", ln=True)
     pdf.set_font("helvetica", '', 11)
@@ -243,8 +231,7 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.set_font("helvetica", 'B', 11)
     pdf.cell(0, 6, f"Peso Estimado (PEF): {pef}  |  Edad Gestacional (EG): {eg}", ln=True)
     pdf.ln(5)
-
-    # 4. EVIDENCIAS ECOGRAFICAS (Antiguo 3)
+    # 4. EVIDENCIAS ECOGRAFICAS
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "4. Evidencia Ecografica", ln=True)
     y_img = pdf.get_y()
@@ -255,10 +242,10 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
         img_pil_b = Image.fromarray(img_body)
         pdf.image(img_pil_b, x=110, y=y_img, w=75)
     
-    pdf.set_y(y_img + 60) # Bajar el cursor
+    pdf.set_y(y_img + 60)
     pdf.ln(5)
 
-    # 5. CONCLUSION ECOGRAFICA (NUEVO)
+    # 5. CONCLUSION ECOGRAFICA
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "5. Conclusion Ecografica", ln=True)
     pdf.set_font("helvetica", '', 11)
@@ -266,13 +253,9 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     
     return bytes(pdf.output())
 
-# ====================================================
-# ETAPA 1: PANEL LATERAL
-# ====================================================
+# PANEL LATERAL
 st.sidebar.title("Panel de Control")
 st.sidebar.markdown(f"**Dr.:** {st.session_state.operador_nombres} {st.session_state.operador_apellidos}")
-
-# Si activan la casilla, muestra la tabla y detiene la ejecución de la app principal momentáneamente
 
 st.sidebar.divider()
 st.sidebar.header(" Carga de Archivos")
@@ -304,12 +287,7 @@ if ver_db:
     st.stop()
 
 # Sección para mostrar y administrar la base de datos
-# ==============================================================================
-# PEGA EL PASO 2 AQUÍ: Justo debajo de la barra lateral o al final de tus imports
-# ==============================================================================
-# ====================================================
 # PROCESAMIENTO
-# ====================================================
 if archivos_subidos and procesar_btn:
     candidatos = []
     paci_nombre, paci_id, paci_fecha, paci_edad, paci_sexo, modalidad = "", "", "", "", "", ""
