@@ -170,7 +170,6 @@ def extraer_datos_paciente(ds):
     if len(fecha) == 8: fecha = f"{fecha[6:8]}/{fecha[4:6]}/{fecha[0:4]}"
     
     edad = str(ds.PatientAge) if 'PatientAge' in ds else "--"
-    # Limpiar formato de edad DICOM (ej: '028Y' -> '28 años')
     if edad.endswith('Y'): edad = f"{int(edad[:-1])} años"
     
     sexo = str(ds.PatientSex) if 'PatientSex' in ds else "--"
@@ -195,12 +194,12 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf = FPDF()
     pdf.add_page()
     
-    # TITULO
+    # TIT
     pdf.set_font("helvetica", 'B', 16)
     pdf.cell(0, 10, "REPORTE CLINICO DE BIOMETRIA FETAL", ln=True, align='C')
     pdf.ln(5)
     
-    # 1. DATOS DEL ESTUDIO
+    # DATOS DEL ESTUDIO
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "1. Datos del Estudio", ln=True)
     pdf.set_font("helvetica", '', 11)
@@ -212,14 +211,14 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.cell(0, 6, f"Fecha de Revision: {fecha_revision}", ln=True)
     pdf.ln(5)
     
-    # 2. OBSERVACIONES MEDICAS
+    # OBSERVACIONES MEDICAS
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "2. Observaciones Medicas", ln=True)
     pdf.set_font("helvetica", '', 11)
     pdf.multi_cell(0, 6, obs if obs.strip() else "Sin observaciones adicionales dictadas.")
     pdf.ln(5)
 
-    # 3. RESULTADOS BIOMETRICOS
+    # RESULTADOS BIOMETRICOS
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "3. Resultados Biometricos", ln=True)
     pdf.set_font("helvetica", '', 11)
@@ -231,7 +230,7 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.set_font("helvetica", 'B', 11)
     pdf.cell(0, 6, f"Peso Estimado (PEF): {pef}  |  Edad Gestacional (EG): {eg}", ln=True)
     pdf.ln(5)
-    # 4. EVIDENCIAS ECOGRAFICAS
+    # EVIDENCIAS ECOGRAFICAS
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "4. Evidencia Ecografica", ln=True)
     y_img = pdf.get_y()
@@ -245,7 +244,7 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.set_y(y_img + 60)
     pdf.ln(5)
 
-    # 5. CONCLUSION ECOGRAFICA
+    # CONCLUSION ECOGRAFICA
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "5. Conclusion Ecografica", ln=True)
     pdf.set_font("helvetica", '', 11)
@@ -286,7 +285,6 @@ if ver_db:
         st.error(f"Error al consultar la base de datos: {e}")
     st.stop()
 
-# Sección para mostrar y administrar la base de datos
 # PROCESAMIENTO
 if archivos_subidos and procesar_btn:
     candidatos = []
@@ -379,7 +377,7 @@ if archivos_subidos and procesar_btn:
         pef_res, eg_res, sem, dias = calcular_biometria_fetal(val_dbp, val_cc, val_ca, val_lf)
         fpp_calculada = calcular_fpp(paci_fecha, sem, dias)
         
-        # Plantilla automática para Conclusiones
+        # Plantilla Conclusiones
         plantilla_conclusiones = (
             f"1) Embarazo de {eg_res} x ECO (+/- 21 días)\n"
             f"2) Presentación: Cefálica \n"
@@ -396,9 +394,8 @@ if archivos_subidos and procesar_btn:
             'plantilla_conclusiones': plantilla_conclusiones
         })
 
-# ====================================================
+
 # INTERFAZ DE RESULTADOS
-# ====================================================
 if st.session_state.estudio_procesado:
     ss = st.session_state
     
@@ -468,16 +465,14 @@ if st.session_state.estudio_procesado:
         type="primary",
         use_container_width=True
     )
-    # === PEGA ESTO AQUÍ ABAJO ===
+    
     semanas_val = ss.get('eg_semanas', ss.get('semanas', 0))
     dias_val = ss.get('eg_dias', ss.get('dias', 0))
     fecha_revision_bolivia = (datetime.now() - timedelta(hours=4)).strftime("%d/%m/%Y %H:%M:%S")
 
-    # 2. Calculamos la FPP de forma segura
     fpp_calculada_val = calcular_fpp(ss.get('paci_fecha', ''), semanas_val, dias_val)
-    # 3. CONTROL DE DUPLICADOS: Verificamos si este estudio ya se guardó en la sesión actual
+    # CONTROL DE DUPLICADOS
     clave_estudio_actual = f"{ss.get('paci_nombre', '')}_{ss.get('paci_fecha', '')}"
-    # Verificamos si este estudio en específico ya fue guardado en la sesión
     if ss.get('ultimo_estudio_guardado') != clave_estudio_actual:
         if not ss.get('estudio_ya_guardado', False):
             fpp_a_guardar = locals().get('fpp_calculada', ss.get('fpp_resultado', 'No disponible'))
@@ -494,6 +489,5 @@ if st.session_state.estudio_procesado:
             )
         
         if guardado_ok:
-            # Marcamos en la sesión que ya se guardó para que no se repita al recargar
             ss.ultimo_estudio_guardado = clave_estudio_actual
             st.success("Estudio guardado")
