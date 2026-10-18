@@ -497,3 +497,149 @@ if st.session_state.estudio_procesado:
         if guardado_ok:
             ss.ultimo_estudio_guardado = clave_estudio_actual
             st.success("Estudio guardado")
+#NUEVOS ROLES
+#1.PRIMER CODIGO INTENTO Inicio codigo:
+# Función auxiliar para conectar a la DB de Usuarios en Neon
+def get_db_connection_usuarios():
+    # Sustituye con tus credenciales/cadena de conexión de Neon para usuarios
+    return psycopg2.connect(st.secrets["NEON_USUARIOS_URL"])
+
+def modulo_operador():
+    st.title("⚙️ Panel de Administración - Operador")
+    st.subheader("Gestión de Personal y Control de Acceso")
+    
+    opcion = st.radio(
+        "Seleccione una acción:",
+        ["Crear Nuevo Usuario", "Ver / Listar Usuarios", "Editar / Eliminar Usuario"],
+        horizontal=True
+    )
+    
+    conn = get_db_connection_usuarios()
+    cursor = conn.cursor()
+    
+    # -------------------------------------------------------------
+    # 1. CREAR NUEVO USUARIO
+    # -------------------------------------------------------------
+    if opcion == "Crear Nuevo Usuario":
+        st.markdown("### 👤 Registrar Nuevo Usuario")
+        
+        with st.form("form_crear_usuario"):
+            col1, col2 = st.columns(2)
+            with col1:
+                nombre = st.text_input("Nombre")
+                usuario = st.text_input("Nombre de Usuario (Login)")
+                password = st.text_input("Contraseña", type="password")
+            with col2:
+                apellido = st.text_input("Apellido")
+                ci = st.text_input("Cédula de Identidad (CI)")
+                rol = st.selectbox(
+                    "Rol a Asignar",
+                    ["Médico Ecografista", "Médico Revisor", "Operador"]
+                )
+            
+            submit = st.form_submit_button("Guardar Usuario")
+            
+            if submit:
+                if not (nombre and apellido and usuario and password and ci):
+                    st.error("Por favor completa todos los campos del formulario.")
+                else:
+                    try:
+                        cursor.execute("""
+                            INSERT INTO usuarios (usuario, password, nombre, apellido, ci, rol)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (usuario, password, nombre, apellido, ci, rol))
+                        conn.commit()
+                        st.success(f"✅ Usuario '{usuario}' registrado exitosamente como **{rol}**.")
+                    except Exception as e:
+                        conn.rollback()
+                        st.error(f"Error al registrar usuario: {e}")
+
+    # -------------------------------------------------------------
+    # 2. LISTAR USUARIOS
+    # -------------------------------------------------------------
+    elif opcion == "Ver / Listar Usuarios":
+        st.markdown("### 📋 Usuarios Registrados en el Sistema")
+        try:
+            cursor.execute("SELECT id, nombre, apellido, ci, usuario, rol FROM usuarios ORDER BY id ASC;")
+            registros = cursor.fetchall()
+            
+            if registros:
+                # Convertimos a formato de tabla para Streamlit
+                datos_tabla = []
+                for r in registros:
+                    datos_tabla.append({
+                        "ID": r[0],
+                        "Nombre Completo": f"{r[1]} {r[2]}",
+                        "CI": r[3],
+                        "Usuario": r[4],
+                        "Rol Asignado": r[5]
+                    })
+                st.dataframe(datos_tabla, use_container_width=True)
+            else:
+                st.info("No hay usuarios registrados aparte del administrador.")
+        except Exception as e:
+            st.error(f"Error al obtener usuarios: {e}")
+
+    # -------------------------------------------------------------
+    # 3. EDITAR / ELIMINAR USUARIOS
+    # -------------------------------------------------------------
+    elif opcion == "Editar / Eliminar Usuario":
+        st.markdown("### ✏️ Modificar o Dar de Baja un Usuario")
+        try:
+            cursor.execute("SELECT id, usuario, nombre, apellido, rol FROM usuarios WHERE usuario != 'admin';")
+            usuarios_lista = cursor.fetchall()
+            
+            if not usuarios_lista:
+                st.info("No hay usuarios registrados que puedan modificarse.")
+            else:
+                opciones_dict = {f"{u[1]} ({u[2]} {u[3]} - {u[4]})": u[0] for u in usuarios_lista}
+                usuario_sel = st.selectbox("Seleccione el usuario a modificar:", list(opciones_dict.keys()))
+                id_usuario = opciones_dict[usuario_sel]
+                
+                # Cargar datos actuales
+                cursor.execute("SELECT nombre, apellido, ci, usuario, password, rol FROM usuarios WHERE id = %s;", (id_usuario,))
+                u_data = cursor.fetchone()
+                
+                col_edit, col_del = st.tabs(["Editar Datos", "Eliminar Usuario"])
+                
+                with col_edit:
+                    with st.form("form_editar_usuario"):
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            e_nombre = st.text_input("Nombre", value=u_data[0])
+                            e_usuario = st.text_input("Usuario", value=u_data[3])
+                            e_pass = st.text_input("Contraseña", value=u_data[4], type="password")
+                        with c2:
+                            e_apellido = st.text_input("Apellido", value=u_data[1])
+                            e_ci = st.text_input("CI", value=u_data[2])
+                            e_rol = st.selectbox(
+                                "Rol",
+                                ["Médico Ecografista", "Médico Revisor", "Operador"],
+                                index=["Médico Ecografista", "Médico Revisor", "Operador"].index(u_data[5])
+                            )
+                        
+                        btn_update = st.form_submit_button("Actualizar Usuario")
+                        if btn_update:
+                            cursor.execute("""
+                                UPDATE usuarios 
+                                SET nombre=%s, apellido=%s, ci=%s, usuario=%s, password=%s, rol=%s
+                                WHERE id=%s
+                            """, (e_nombre, e_apellido, e_ci, e_usuario, e_pass, e_rol, id_usuario))
+                            conn.commit()
+                            st.success("✅ Datos del usuario actualizados correctamente.")
+                            st.rerun()
+
+                with col_del:
+                    st.warning("⚠️ Esta acción es irreversible.")
+                    if st.button("🔴 Eliminar Definitivamente", type="primary"):
+                        cursor.execute("DELETE FROM usuarios WHERE id = %s;", (id_usuario,))
+                        conn.commit()
+                        st.success("Usuario eliminado con éxito.")
+                        st.rerun()
+                        
+        except Exception as e:
+            st.error(f"Error en la edición: {e}")
+            
+    cursor.close()
+    conn.close()
+#1.FIN CODIGO
