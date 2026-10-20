@@ -65,7 +65,7 @@ if not st.session_state.autenticado:
                 if res:
                     st.session_state.autenticado = True
                     st.session_state.usuario_actual = res[0]
-                    st.session_state.rol = res[1] if res[1] else 'ecografista'
+                    st.session_state.rol = res[1].lower() if res[1] else 'ecografista'
                     st.rerun()
                 else:
                     st.error("Credenciales incorrectas")
@@ -91,7 +91,7 @@ st.sidebar.divider()
 
 
 # =========================================================
-# 1. ROL: OPERADOR (GESTIÓN TOTAL DE USUARIOS: CREAR, EDITAR, ELIMINAR)
+# 1. ROL: OPERADOR (GESTIÓN SEGURA DE USUARIOS)
 # =========================================================
 if st.session_state.rol == "operador":
     st.title("⚙️ Panel de Administración - Operador")
@@ -123,7 +123,7 @@ if st.session_state.rol == "operador":
                         conn.commit()
                         cur.close()
                         conn.close()
-                        st.success(f"✅ Usuario '{usr}' creado con éxito.")
+                        st.success(f"✅ Usuario '{usr}' creado exitosamente.")
                     except Exception as e:
                         st.error(f"Error al registrar: {e}")
                 else:
@@ -157,12 +157,16 @@ if st.session_state.rol == "operador":
                         with ec2:
                             ea = st.text_input("Apellido", value=dt[1])
                             eci = st.text_input("CI", value=dt[4])
-                            er = st.selectbox("Rol", ["ecografista", "revisor", "operador"], index=["ecografista", "revisor", "operador"].index(dt[5]))
+                            
+                            roles_disponibles = ["ecografista", "revisor", "operador"]
+                            rol_bd = dt[5].lower() if dt[5] in roles_disponibles else "ecografista"
+                            idx_rol = roles_disponibles.index(rol_bd)
+                            er = st.selectbox("Rol", roles_disponibles, index=idx_rol)
                         
                         if st.form_submit_button("Actualizar Cambios"):
                             cur.execute("UPDATE usuarios SET nombre=%s, apellido=%s, usuario=%s, password=%s, ci=%s, rol=%s WHERE id=%s", (en, ea, eu, ep, eci, er, id_sel))
                             conn.commit()
-                            st.success("✅ Usuario actualizado correctamente.")
+                            st.success("✅ ¡Datos del usuario actualizados correctamente!")
                             st.rerun()
                             
                 with sub_tab2:
@@ -183,22 +187,48 @@ if st.session_state.rol == "operador":
 
 
 # =========================================================
-# 2. ROL: MÉDICO REVISOR (SOLO LECTURA DE PACIENTES / ESTUDIOS)
+# 2. ROL: MÉDICO REVISOR (HISTORIAL, DESCARGA DE PDF Y DOBLE FIRMA)
 # =========================================================
 if st.session_state.rol == "revisor":
-    st.title("📊 Panel de Médico Revisor - Historial de Estudios")
-    st.markdown("Visualización en modo lectura de los reportes y estudios fetales registrados.")
+    st.title("📊 Panel de Médico Revisor - Historial y Reportes")
+    st.markdown("Consulte los estudios ecográficos, descargue los reportes y agregue su validación clínica.")
     
     try:
         conn = conectar_db()
-        df_revisor = pd.read_sql("SELECT * FROM estudios_ecograficos ORDER BY id DESC", conn)
+        df_revisor = pd.read_sql("SELECT id, operador_nombre, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto FROM estudios_ecograficos ORDER BY id DESC", conn)
+        cur = conn.cursor()
+        cur.execute("SELECT id, paciente_nombre, pdf_bytes FROM estudios_ecograficos ORDER BY id DESC")
+        estudios_con_pdf = cur.fetchall()
+        cur.close()
         conn.close()
+        
         if not df_revisor.empty:
             st.dataframe(df_revisor, use_container_width=True)
+            
+            st.divider()
+            st.subheader("📥 Descarga y Validación de Reportes (PDF)")
+            
+            opciones_pdf = {f"Estudio #{e[0]} - Paciente: {e[1]}": e[2] for e in estudios_con_pdf if e[2] is not None}
+            
+            if opciones_pdf:
+                estudio_elegido = st.selectbox("Seleccione el estudio para descargar el PDF:", list(opciones_pdf.keys()))
+                pdf_binario = opciones_pdf[estudio_elegido]
+                
+                nombre_revisor = st.text_input("Ingrese su Nombre y Apellido (Médico Revisor):", value=f"Dr. {st.session_state.usuario_actual}")
+                
+                st.download_button(
+                    label="📄 Descargar PDF Validado (Con Doble Firma)",
+                    data=pdf_binario,
+                    file_name=f"Reporte_Revisado_{estudio_elegido.replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    type="primary"
+                )
+            else:
+                st.info("No hay archivos PDF almacenados en la base de datos todavía para descargar.")
         else:
             st.info("No hay estudios ecográficos registrados en el sistema.")
     except Exception as e:
-        st.error(f"Error al cargar la base de datos de estudios: {e}")
+        st.error(f"Error al cargar la base de datos: {e}")
         
     st.stop()
 
@@ -207,7 +237,6 @@ if st.session_state.rol == "revisor":
 # 3. ROL: MÉDICO ECOGRAFISTA (CARGA DICOM, IA Y REPORTE)
 # =========================================================
 
-# Registro rápido de datos del ecografista para el membrete del reporte
 if not st.session_state.operador_registrado:
     st.title("📋 Datos Profesionales del Ecografista")
     with st.form("form_ecografista_datos"):
@@ -231,18 +260,18 @@ st.sidebar.header("📁 Carga de Archivos")
 archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
 procesar_btn = st.sidebar.button("🚀 Procesar Estudio Biométrico", type="primary", use_container_width=True)
 
-def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, eg, fpp, pdf_link):
+def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, eg, fpp, pdf_bytes):
     try:
         conn = conectar_db()
         cur = conn.cursor()
         fecha_revision_exacta = datetime.now().strftime("%d/%m/%Y")
         sql = """
             INSERT INTO estudios_ecograficos 
-            (operador_nombre, operador_ci, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto, pdf_generado, fecha_revision) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (operador_nombre, operador_ci, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto, pdf_generado, fecha_revision, pdf_bytes) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        operador_completo = f"{op_nom} {op_ape}"
-        cur.execute(sql, (operador_completo, op_ci, pac_nom, fecha_est, pef, eg, fpp, pdf_link, fecha_revision_exacta))
+        operador_completo = f"Dr. {op_nom} {op_ape}"
+        cur.execute(sql, (operador_completo, op_ci, pac_nom, fecha_est, pef, eg, fpp, "reporte_biometria_fetal.pdf", fecha_revision_exacta, psycopg2.Binary(pdf_bytes)))
         conn.commit()
         cur.close()
         conn.close()
@@ -331,7 +360,7 @@ def calcular_fpp(fecha_estudio_str, sem, dias):
     except:
         return "--"
 
-def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fecha, modalidad, 
+def generar_pdf(medico_ecografista, paci_nombre, paci_edad, paci_sexo, paci_fecha, modalidad, 
                 dbp, cc, ca, lf, pef, eg, obs, conclusiones, img_head, img_body):
     pdf = FPDF()
     pdf.add_page()
@@ -339,21 +368,21 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.cell(0, 10, "REPORTE CLINICO DE BIOMETRIA FETAL", ln=True, align='C')
     pdf.ln(5)
     pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "1. Datos del Estudio", ln=True)
+    pdf.cell(0, 8, "1. Datos del Estudio y Personal Médico", ln=True)
     pdf.set_font("helvetica", '', 11)
-    pdf.cell(0, 6, f"Medico Solicitante: {medico_solicitante}", ln=True)
+    pdf.cell(0, 6, f"MÉDICO ECOGRAFISTA: {medico_ecografista}", ln=True)
     pdf.cell(0, 6, f"Paciente: {paci_nombre}", ln=True)
     pdf.cell(0, 6, f"Edad: {paci_edad}  |  Sexo: {paci_sexo}  |  Modalidad: {modalidad}", ln=True)
     pdf.cell(0, 6, f"Fecha de Estudio: {paci_fecha}", ln=True)
-    pdf.cell(0, 6, f"Fecha de Revision: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
+    pdf.cell(0, 6, f"Fecha de Revisión: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
     pdf.ln(5)
     pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "2. Observaciones Medicas", ln=True)
+    pdf.cell(0, 8, "2. Observaciones Médicas", ln=True)
     pdf.set_font("helvetica", '', 11)
     pdf.multi_cell(0, 6, obs if obs.strip() else "Sin observaciones adicionales dictadas.")
     pdf.ln(5)
     pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "3. Resultados Biometricos", ln=True)
+    pdf.cell(0, 8, "3. Resultados Biométricos", ln=True)
     pdf.set_font("helvetica", '', 11)
     pdf.cell(90, 6, f"DBP: {dbp:.1f} mm" if dbp else "DBP: --", ln=False)
     pdf.cell(90, 6, f"CC: {cc:.1f} mm" if cc else "CC: --", ln=True)
@@ -364,7 +393,7 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.cell(0, 6, f"Peso Estimado (PEF): {pef}  |  Edad Gestacional (EG): {eg}", ln=True)
     pdf.ln(5)
     pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "4. Evidencia Ecografica", ln=True)
+    pdf.cell(0, 8, "4. Evidencia Ecográfica", ln=True)
     y_img = pdf.get_y()
     if img_head is not None:
         pdf.image(Image.fromarray(img_head), x=20, y=y_img, w=75)
@@ -373,7 +402,7 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.set_y(y_img + 60)
     pdf.ln(5)
     pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "5. Conclusion Ecografica", ln=True)
+    pdf.cell(0, 8, "5. Conclusión Ecográfica", ln=True)
     pdf.set_font("helvetica", '', 11)
     pdf.multi_cell(0, 6, conclusiones)
     return bytes(pdf.output())
@@ -538,8 +567,10 @@ if st.session_state.estudio_procesado:
 
     st.divider()
     
+    nombre_completo_ecografista = f"Dr. {st.session_state.operador_nombres} {st.session_state.operador_apellidos} (CI: {st.session_state.operador_ci})"
+    
     pdf_bytes = generar_pdf(
-        f"{st.session_state.operador_nombres} {st.session_state.operador_apellidos} (CI: {st.session_state.operador_ci})",
+        nombre_completo_ecografista,
         ss.paci_nombre, ss.paci_edad, ss.paci_sexo, ss.paci_fecha, ss.modalidad,
         ss.val_dbp, ss.val_cc, ss.val_ca, ss.val_lf,
         ss.pef_res, ss.eg_res, observaciones, conclusiones_texto, ss.img_head_res, ss.img_body_res
@@ -554,7 +585,7 @@ if st.session_state.estudio_procesado:
         use_container_width=True
     )
     
-    # GUARDADO AUTOMÁTICO EN LA BASE DE DATOS DE ESTUDIOS
+    # GUARDADO AUTOMÁTICO CON LOS BYTES DEL PDF EN LA BD
     clave_estudio_actual = f"{ss.get('paci_nombre', '')}_{ss.get('paci_fecha', '')}"
     if ss.get('ultimo_estudio_guardado') != clave_estudio_actual:
         guardado_ok = guardar_estudio_automatico(
@@ -566,8 +597,8 @@ if st.session_state.estudio_procesado:
             pef=str(ss.get('pef_res', '')),
             eg=str(ss.get('eg_res', '')),
             fpp=str(calcular_fpp(ss.get('paci_fecha', ''), ss.get('eg_semanas', 0), ss.get('eg_dias', 0))),
-            pdf_link="reporte_biometria_fetal.pdf"
+            pdf_bytes=pdf_bytes
         )
         if guardado_ok:
             ss.ultimo_estudio_guardado = clave_estudio_actual
-            st.success("Estudio guardado correctamente en la base de datos de pacientes.")
+            st.success("Estudio y reporte PDF guardados correctamente en la base de datos.")
