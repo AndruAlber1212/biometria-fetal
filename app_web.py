@@ -46,7 +46,7 @@ st.markdown(hide_menu_style, unsafe_allow_html=True)
 
 
 # =========================================================
-# FASE 1: PANTALLA DE LOGIN MULTI-ROL
+# PANTALLA DE LOGIN MULTI-ROL
 # =========================================================
 if not st.session_state.autenticado:
     st.title("🔐 Acceso al Sistema - Biometría Fetal")
@@ -58,7 +58,6 @@ if not st.session_state.autenticado:
             try:
                 conn = conectar_db()
                 cur = conn.cursor()
-                # Consultamos el rol además del nombre
                 cur.execute("SELECT usuario, rol FROM usuarios WHERE usuario = %s AND password = %s", (u, p))
                 res = cur.fetchone()
                 cur.close()
@@ -66,22 +65,21 @@ if not st.session_state.autenticado:
                 if res:
                     st.session_state.autenticado = True
                     st.session_state.usuario_actual = res[0]
-                    # Si el usuario no tiene rol asignado en la BD, le asignamos 'ecografista' por defecto
                     st.session_state.rol = res[1] if res[1] else 'ecografista'
                     st.rerun()
                 else:
                     st.error("Credenciales incorrectas")
             except Exception as e:
-                st.error(f"Error de conexión a la base de datos: {e}")
+                st.error(f"Error de conexión: {e}")
     st.stop()
 
 
 # =========================================================
-# BOTÓN DE CERRAR SESIÓN (BARRA LATERAL)
+# BARRA LATERAL COMÚN (CERRAR SESIÓN)
 # =========================================================
 st.sidebar.markdown(f"👤 **Usuario:** {st.session_state.usuario_actual}")
-st.sidebar.markdown(f"🔑 **Rol:** `{st.session_state.rol}`")
-if st.sidebar.button("🔴 Cerrar Sesión"):
+st.sidebar.markdown(f"🔑 **Rol:** `{st.session_state.rol.upper()}`")
+if st.sidebar.button("🔴 Cerrar Sesión", use_container_width=True):
     st.session_state.autenticado = False
     st.session_state.rol = None
     st.session_state.usuario_actual = None
@@ -89,31 +87,31 @@ if st.sidebar.button("🔴 Cerrar Sesión"):
     st.session_state.estudio_procesado = False
     st.rerun()
 
+st.sidebar.divider()
+
 
 # =========================================================
-# ROL 1: OPERADOR (GESTIÓN DE USUARIOS)
+# 1. ROL: OPERADOR (GESTIÓN TOTAL DE USUARIOS: CREAR, EDITAR, ELIMINAR)
 # =========================================================
 if st.session_state.rol == "operador":
     st.title("⚙️ Panel de Administración - Operador")
-    st.subheader("Gestión de Personal y Control de Acceso")
+    st.subheader("Gestión de Personal y Cuentas de Acceso")
     
-    tab_crear, tab_listar = st.tabs(["➕ Registrar Nuevo Usuario", "📋 Ver Usuarios Registrados"])
+    tab_crear, tab_gestionar = st.tabs(["➕ Registrar Nuevo Usuario", "✏️ Modificar / Eliminar Usuarios"])
     
     with tab_crear:
-        st.markdown("### Crear Nuevo Usuario")
         with st.form("form_crear_usuario"):
-            col_a, col_b = st.columns(2)
-            with col_a:
+            c1, c2 = st.columns(2)
+            with c1:
                 nom = st.text_input("Nombre")
                 usr = st.text_input("Nombre de Usuario (Login)")
                 pwd = st.text_input("Contraseña", type="password")
-            with col_b:
+            with c2:
                 ape = st.text_input("Apellido")
                 ci = st.text_input("Cédula de Identidad (CI)")
-                rol_sel = st.selectbox("Rol a Asignar", ["ecografista", "revisor", "operador"])
+                rol_sel = st.selectbox("Rol Asignado", ["ecografista", "revisor", "operador"])
                 
-            btn_guardar = st.form_submit_button("Guardar Usuario en Sistema")
-            if btn_guardar:
+            if st.form_submit_button("Guardar Usuario"):
                 if nom and ape and usr and pwd and ci:
                     try:
                         conn = conectar_db()
@@ -125,42 +123,99 @@ if st.session_state.rol == "operador":
                         conn.commit()
                         cur.close()
                         conn.close()
-                        st.success(f"✅ Usuario '{usr}' creado exitosamente con el rol **{rol_sel}**.")
+                        st.success(f"✅ Usuario '{usr}' creado con éxito.")
                     except Exception as e:
-                        st.error(f"Error al registrar usuario: {e}")
+                        st.error(f"Error al registrar: {e}")
                 else:
-                    st.warning("Por favor completa todos los campos.")
+                    st.warning("Completa todos los campos.")
                     
-    with tab_listar:
-        st.markdown("### Usuarios en la Base de Datos")
+    with tab_gestionar:
+        st.markdown("### Listado y Edición de Usuarios")
         try:
             conn = conectar_db()
-            df_users = pd.read_sql("SELECT id, nombre, apellido, ci, usuario, rol FROM usuarios ORDER BY id ASC", conn)
-            conn.close()
-            if not df_users.empty:
-                st.dataframe(df_users, use_container_width=True)
+            cur = conn.cursor()
+            cur.execute("SELECT id, nombre, apellido, usuario, rol, ci FROM usuarios WHERE usuario != 'admin'")
+            lista_u = cur.fetchall()
+            
+            if lista_u:
+                opciones_u = {f"{u[3]} ({u[1]} {u[2]} - Rol: {u[4]})": u[0] for u in lista_u}
+                sel_u = st.selectbox("Seleccione un usuario para modificar o eliminar:", list(opciones_u.keys()))
+                id_sel = opciones_u[sel_u]
+                
+                cur.execute("SELECT nombre, apellido, usuario, password, ci, rol FROM usuarios WHERE id = %s", (id_sel,))
+                dt = cur.fetchone()
+                
+                sub_tab1, sub_tab2 = st.tabs(["Editar Datos", "Eliminar Usuario"])
+                
+                with sub_tab1:
+                    with st.form("form_edit_u"):
+                        ec1, ec2 = st.columns(2)
+                        with ec1:
+                            en = st.text_input("Nombre", value=dt[0])
+                            eu = st.text_input("Usuario", value=dt[2])
+                            ep = st.text_input("Contraseña", value=dt[3], type="password")
+                        with ec2:
+                            ea = st.text_input("Apellido", value=dt[1])
+                            eci = st.text_input("CI", value=dt[4])
+                            er = st.selectbox("Rol", ["ecografista", "revisor", "operador"], index=["ecografista", "revisor", "operador"].index(dt[5]))
+                        
+                        if st.form_submit_button("Actualizar Cambios"):
+                            cur.execute("UPDATE usuarios SET nombre=%s, apellido=%s, usuario=%s, password=%s, ci=%s, rol=%s WHERE id=%s", (en, ea, eu, ep, eci, er, id_sel))
+                            conn.commit()
+                            st.success("✅ Usuario actualizado correctamente.")
+                            st.rerun()
+                            
+                with sub_tab2:
+                    st.warning("⚠️ Esta acción eliminará el usuario permanentemente.")
+                    if st.button("🔴 Eliminar este Usuario", type="primary"):
+                        cur.execute("DELETE FROM usuarios WHERE id = %s", (id_sel,))
+                        conn.commit()
+                        st.success("Usuario eliminado.")
+                        st.rerun()
             else:
-                st.info("No hay usuarios registrados.")
+                st.info("No hay usuarios editables registrados.")
+            cur.close()
+            conn.close()
         except Exception as e:
-            st.error(f"Error al consultar usuarios: {e}")
+            st.error(f"Error: {e}")
 
-    st.stop()  # Detiene la ejecución para que el operador no vea las herramientas del ecografista
+    st.stop()
 
 
 # =========================================================
-# ROL 2: MÉDICO ECOGRAFISTA (TU SISTEMA CLÍNICO ORIGINAL)
+# 2. ROL: MÉDICO REVISOR (SOLO LECTURA DE PACIENTES / ESTUDIOS)
+# =========================================================
+if st.session_state.rol == "revisor":
+    st.title("📊 Panel de Médico Revisor - Historial de Estudios")
+    st.markdown("Visualización en modo lectura de los reportes y estudios fetales registrados.")
+    
+    try:
+        conn = conectar_db()
+        df_revisor = pd.read_sql("SELECT * FROM estudios_ecograficos ORDER BY id DESC", conn)
+        conn.close()
+        if not df_revisor.empty:
+            st.dataframe(df_revisor, use_container_width=True)
+        else:
+            st.info("No hay estudios ecográficos registrados en el sistema.")
+    except Exception as e:
+        st.error(f"Error al cargar la base de datos de estudios: {e}")
+        
+    st.stop()
+
+
+# =========================================================
+# 3. ROL: MÉDICO ECOGRAFISTA (CARGA DICOM, IA Y REPORTE)
 # =========================================================
 
-# FASE DE REGISTRO DE DATOS DEL MÉDICO
+# Registro rápido de datos del ecografista para el membrete del reporte
 if not st.session_state.operador_registrado:
-    st.title("📋 Registro de Datos del Médico Ecografista")
-    with st.form("form_operador"):
-        nombres_op = st.text_input("Nombres Médico")
-        apellidos_op = st.text_input("Apellidos Médico")
+    st.title("📋 Datos Profesionales del Ecografista")
+    with st.form("form_ecografista_datos"):
+        nombres_op = st.text_input("Nombres")
+        apellidos_op = st.text_input("Apellidos")
         ci_op = st.text_input("Cédula de Identidad (CI)")
         
-        btn_continuar = st.form_submit_button("Ingresar al Sistema Clínico")
-        if btn_continuar:
+        if st.form_submit_button("Continuar al Sistema de Ecografía"):
             if nombres_op and apellidos_op and ci_op:
                 st.session_state.operador_nombres = nombres_op
                 st.session_state.operador_apellidos = apellidos_op
@@ -168,10 +223,14 @@ if not st.session_state.operador_registrado:
                 st.session_state.operador_registrado = True
                 st.rerun()
             else:
-                st.warning("Complete Nombres, Apellidos y CI.")
+                st.warning("Complete todos los campos.")
     st.stop()
 
-# FUNCIONES AUXILIARES CLÍNICAS
+st.sidebar.markdown(f"**Dr.(a):** {st.session_state.operador_nombres} {st.session_state.operador_apellidos}")
+st.sidebar.header("📁 Carga de Archivos")
+archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
+procesar_btn = st.sidebar.button("🚀 Procesar Estudio Biométrico", type="primary", use_container_width=True)
+
 def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, eg, fpp, pdf_link):
     try:
         conn = conectar_db()
@@ -194,7 +253,6 @@ def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, e
 
 st.title("🩺 Sistema de Biometría Fetal - Análisis Clínico")
 
-# CARGA DE MODELOS YOLO
 @st.cache_resource
 def cargar_modelos():
     return YOLO('best.pt'), YOLO('best_lf_ca.pt')
@@ -255,13 +313,10 @@ def extraer_datos_paciente(ds):
     id_paciente = str(ds.PatientID) if 'PatientID' in ds else "--"
     fecha = str(ds.StudyDate) if 'StudyDate' in ds else "--"
     if len(fecha) == 8: fecha = f"{fecha[6:8]}/{fecha[4:6]}/{fecha[0:4]}"
-    
     edad = str(ds.PatientAge) if 'PatientAge' in ds else "--"
     if edad.endswith('Y'): edad = f"{int(edad[:-1])} años"
-    
     sexo = str(ds.PatientSex) if 'PatientSex' in ds else "--"
     modalidad = str(ds.Modality) if 'Modality' in ds else "US (Ultrasonido)"
-    
     return nombre, id_paciente, fecha, edad, sexo, modalidad
 
 def calcular_fpp(fecha_estudio_str, sem, dias):
@@ -280,11 +335,9 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
                 dbp, cc, ca, lf, pef, eg, obs, conclusiones, img_head, img_body):
     pdf = FPDF()
     pdf.add_page()
-    
     pdf.set_font("helvetica", 'B', 16)
     pdf.cell(0, 10, "REPORTE CLINICO DE BIOMETRIA FETAL", ln=True, align='C')
     pdf.ln(5)
-    
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "1. Datos del Estudio", ln=True)
     pdf.set_font("helvetica", '', 11)
@@ -292,16 +345,13 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.cell(0, 6, f"Paciente: {paci_nombre}", ln=True)
     pdf.cell(0, 6, f"Edad: {paci_edad}  |  Sexo: {paci_sexo}  |  Modalidad: {modalidad}", ln=True)
     pdf.cell(0, 6, f"Fecha de Estudio: {paci_fecha}", ln=True)
-    fecha_revision = datetime.now().strftime("%d/%m/%Y")
-    pdf.cell(0, 6, f"Fecha de Revision: {fecha_revision}", ln=True)
+    pdf.cell(0, 6, f"Fecha de Revision: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
     pdf.ln(5)
-    
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "2. Observaciones Medicas", ln=True)
     pdf.set_font("helvetica", '', 11)
     pdf.multi_cell(0, 6, obs if obs.strip() else "Sin observaciones adicionales dictadas.")
     pdf.ln(5)
-
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "3. Resultados Biometricos", ln=True)
     pdf.set_font("helvetica", '', 11)
@@ -313,50 +363,20 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.set_font("helvetica", 'B', 11)
     pdf.cell(0, 6, f"Peso Estimado (PEF): {pef}  |  Edad Gestacional (EG): {eg}", ln=True)
     pdf.ln(5)
-    
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "4. Evidencia Ecografica", ln=True)
     y_img = pdf.get_y()
     if img_head is not None:
-        img_pil_h = Image.fromarray(img_head)
-        pdf.image(img_pil_h, x=20, y=y_img, w=75)
+        pdf.image(Image.fromarray(img_head), x=20, y=y_img, w=75)
     if img_body is not None:
-        img_pil_b = Image.fromarray(img_body)
-        pdf.image(img_pil_b, x=110, y=y_img, w=75)
-    
+        pdf.image(Image.fromarray(img_body), x=110, y=y_img, w=75)
     pdf.set_y(y_img + 60)
     pdf.ln(5)
-
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "5. Conclusion Ecografica", ln=True)
     pdf.set_font("helvetica", '', 11)
     pdf.multi_cell(0, 6, conclusiones)
-    
     return bytes(pdf.output())
-
-# PANEL LATERAL DE ECOGRAFISTA
-st.sidebar.title("Panel de Control")
-st.sidebar.markdown(f"**Dr.:** {st.session_state.operador_nombres} {st.session_state.operador_apellidos}")
-st.sidebar.divider()
-
-st.sidebar.header("📁 Carga de Archivos")
-archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
-procesar_btn = st.sidebar.button("🚀 Procesar Estudio Biométrico", type="primary", use_container_width=True)
-ver_db = st.sidebar.checkbox("Ver Base de Datos de Estudios")
-
-if ver_db:
-    st.subheader("📊 Historial General de Estudios Clínicos")
-    try:
-        conn = conectar_db()
-        df_estudios = pd.read_sql("SELECT * FROM estudios_ecograficos ORDER BY id DESC", conn)
-        conn.close()
-        if not df_estudios.empty:
-            st.dataframe(df_estudios, use_container_width=True)
-        else:
-            st.info("No hay estudios registrados todavía.")
-    except Exception as e:
-        st.error(f"Error al consultar la base de datos: {e}")
-    st.stop()
 
 # PROCESAMIENTO DICOM E IA
 if archivos_subidos and procesar_btn:
@@ -467,7 +487,7 @@ if archivos_subidos and procesar_btn:
             'eg_semanas': sem, 'eg_dias': dias
         })
 
-# INTERFAZ DE RESULTADOS
+# INTERFAZ DE RESULTADOS DEL ECOGRAFISTA
 if st.session_state.estudio_procesado:
     ss = st.session_state
     
@@ -498,29 +518,25 @@ if st.session_state.estudio_procesado:
     
     with col_izq:
         st.subheader("📝 Observaciones Médicas")
-        st.write("Haz clic en el micrófono para iniciar, y clic nuevamente para detener el dictado.")
         audio_bytes = audio_recorder(text="Grabar audio", icon_size="2x")
         texto_transcrito = ""
         
         if audio_bytes:
-            with st.spinner("Transcribiendo audio..."):
+            with st.spinner("Transcribiendo..."):
                 try:
                     r = sr.Recognizer()
                     with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
-                        audio_data = r.record(source)
-                        texto_transcrito = r.recognize_google(audio_data, language="es-ES")
+                        texto_transcrito = r.recognize_google(r.record(source), language="es-ES")
                 except Exception:
-                    st.error("Error al transcribir. Asegúrate de hablar claro.")
+                    st.error("Error al transcribir.")
         
         observaciones = st.text_area("Texto de Observaciones:", value=texto_transcrito, height=150)
 
     with col_der:
         st.subheader("📋 Conclusión Ecográfica")
-        st.write("Rellena o modifica los hallazgos clínicos:")
         conclusiones_texto = st.text_area("Conclusiones para el PDF:", value=ss.plantilla_conclusiones, height=150)
 
     st.divider()
-    st.subheader("📥 Generación de Reporte")
     
     pdf_bytes = generar_pdf(
         f"{st.session_state.operador_nombres} {st.session_state.operador_apellidos} (CI: {st.session_state.operador_ci})",
@@ -538,11 +554,7 @@ if st.session_state.estudio_procesado:
         use_container_width=True
     )
     
-    semanas_val = ss.get('eg_semanas', 0)
-    dias_val = ss.get('eg_dias', 0)
-    fpp_calculada_val = calcular_fpp(ss.get('paci_fecha', ''), semanas_val, dias_val)
-    
-    # CONTROL DE DUPLICADOS
+    # GUARDADO AUTOMÁTICO EN LA BASE DE DATOS DE ESTUDIOS
     clave_estudio_actual = f"{ss.get('paci_nombre', '')}_{ss.get('paci_fecha', '')}"
     if ss.get('ultimo_estudio_guardado') != clave_estudio_actual:
         guardado_ok = guardar_estudio_automatico(
@@ -553,10 +565,9 @@ if st.session_state.estudio_procesado:
             fecha_est=str(ss.get('paci_fecha', '')),
             pef=str(ss.get('pef_res', '')),
             eg=str(ss.get('eg_res', '')),
-            fpp=str(fpp_calculada_val),
+            fpp=str(calcular_fpp(ss.get('paci_fecha', ''), ss.get('eg_semanas', 0), ss.get('eg_dias', 0))),
             pdf_link="reporte_biometria_fetal.pdf"
         )
-        
         if guardado_ok:
             ss.ultimo_estudio_guardado = clave_estudio_actual
-            st.success("Estudio guardado correctamente en la base de datos.")
+            st.success("Estudio guardado correctamente en la base de datos de pacientes.")
