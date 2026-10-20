@@ -24,41 +24,139 @@ def conectar_db():
 # --- INICIALIZAR ESTADOS DE SESIÓN ---
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
+if 'rol' not in st.session_state:
+    st.session_state.rol = None
+if 'usuario_actual' not in st.session_state:
+    st.session_state.usuario_actual = None
 if 'operador_registrado' not in st.session_state:
     st.session_state.operador_registrado = False
 if 'estudio_procesado' not in st.session_state:
     st.session_state.estudio_procesado = False
 
-# FASE 1: PANTALLA DE LOGIN
+# ESTILOS VISUALES
+hide_menu_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stApp [data-testid="stToolbar"] {display: none;}
+    </style>
+"""
+st.markdown(hide_menu_style, unsafe_allow_html=True)
+
+
+# =========================================================
+# FASE 1: PANTALLA DE LOGIN MULTI-ROL
+# =========================================================
 if not st.session_state.autenticado:
     st.title("🔐 Acceso al Sistema - Biometría Fetal")
     col1, _ = st.columns([1, 2])
     with col1:
         u = st.text_input("Usuario")
         p = st.text_input("Contraseña", type="password")
-        if st.button("Iniciar Sesión"):
+        if st.button("Iniciar Sesión", type="primary", use_container_width=True):
             try:
                 conn = conectar_db()
                 cur = conn.cursor()
-                cur.execute("SELECT nombre FROM usuarios WHERE usuario = %s AND password = %s", (u, p))
+                # Consultamos el rol además del nombre
+                cur.execute("SELECT usuario, rol FROM usuarios WHERE usuario = %s AND password = %s", (u, p))
                 res = cur.fetchone()
                 cur.close()
                 conn.close()
                 if res:
                     st.session_state.autenticado = True
+                    st.session_state.usuario_actual = res[0]
+                    # Si el usuario no tiene rol asignado en la BD, le asignamos 'ecografista' por defecto
+                    st.session_state.rol = res[1] if res[1] else 'ecografista'
                     st.rerun()
                 else:
                     st.error("Credenciales incorrectas")
             except Exception as e:
-                st.error(f"Error de conexión: {e}")
+                st.error(f"Error de conexión a la base de datos: {e}")
     st.stop()
 
-# FASE 2: REGISTRO DEL OPERADOR
+
+# =========================================================
+# BOTÓN DE CERRAR SESIÓN (BARRA LATERAL)
+# =========================================================
+st.sidebar.markdown(f"👤 **Usuario:** {st.session_state.usuario_actual}")
+st.sidebar.markdown(f"🔑 **Rol:** `{st.session_state.rol}`")
+if st.sidebar.button("🔴 Cerrar Sesión"):
+    st.session_state.autenticado = False
+    st.session_state.rol = None
+    st.session_state.usuario_actual = None
+    st.session_state.operador_registrado = False
+    st.session_state.estudio_procesado = False
+    st.rerun()
+
+
+# =========================================================
+# ROL 1: OPERADOR (GESTIÓN DE USUARIOS)
+# =========================================================
+if st.session_state.rol == "operador":
+    st.title("⚙️ Panel de Administración - Operador")
+    st.subheader("Gestión de Personal y Control de Acceso")
+    
+    tab_crear, tab_listar = st.tabs(["➕ Registrar Nuevo Usuario", "📋 Ver Usuarios Registrados"])
+    
+    with tab_crear:
+        st.markdown("### Crear Nuevo Usuario")
+        with st.form("form_crear_usuario"):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                nom = st.text_input("Nombre")
+                usr = st.text_input("Nombre de Usuario (Login)")
+                pwd = st.text_input("Contraseña", type="password")
+            with col_b:
+                ape = st.text_input("Apellido")
+                ci = st.text_input("Cédula de Identidad (CI)")
+                rol_sel = st.selectbox("Rol a Asignar", ["ecografista", "revisor", "operador"])
+                
+            btn_guardar = st.form_submit_button("Guardar Usuario en Sistema")
+            if btn_guardar:
+                if nom and ape and usr and pwd and ci:
+                    try:
+                        conn = conectar_db()
+                        cur = conn.cursor()
+                        cur.execute("""
+                            INSERT INTO usuarios (nombre, apellido, usuario, password, ci, rol)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (nom, ape, usr, pwd, ci, rol_sel))
+                        conn.commit()
+                        cur.close()
+                        conn.close()
+                        st.success(f"✅ Usuario '{usr}' creado exitosamente con el rol **{rol_sel}**.")
+                    except Exception as e:
+                        st.error(f"Error al registrar usuario: {e}")
+                else:
+                    st.warning("Por favor completa todos los campos.")
+                    
+    with tab_listar:
+        st.markdown("### Usuarios en la Base de Datos")
+        try:
+            conn = conectar_db()
+            df_users = pd.read_sql("SELECT id, nombre, apellido, ci, usuario, rol FROM usuarios ORDER BY id ASC", conn)
+            conn.close()
+            if not df_users.empty:
+                st.dataframe(df_users, use_container_width=True)
+            else:
+                st.info("No hay usuarios registrados.")
+        except Exception as e:
+            st.error(f"Error al consultar usuarios: {e}")
+
+    st.stop()  # Detiene la ejecución para que el operador no vea las herramientas del ecografista
+
+
+# =========================================================
+# ROL 2: MÉDICO ECOGRAFISTA (TU SISTEMA CLÍNICO ORIGINAL)
+# =========================================================
+
+# FASE DE REGISTRO DE DATOS DEL MÉDICO
 if not st.session_state.operador_registrado:
-    st.title("📋 Registro de Operador")
+    st.title("📋 Registro de Datos del Médico Ecografista")
     with st.form("form_operador"):
-        nombres_op = st.text_input("Nombres")
-        apellidos_op = st.text_input("Apellidos")
+        nombres_op = st.text_input("Nombres Médico")
+        apellidos_op = st.text_input("Apellidos Médico")
         ci_op = st.text_input("Cédula de Identidad (CI)")
         
         btn_continuar = st.form_submit_button("Ingresar al Sistema Clínico")
@@ -73,7 +171,7 @@ if not st.session_state.operador_registrado:
                 st.warning("Complete Nombres, Apellidos y CI.")
     st.stop()
 
-# GUARDADO EN BD 
+# FUNCIONES AUXILIARES CLÍNICAS
 def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, eg, fpp, pdf_link):
     try:
         conn = conectar_db()
@@ -94,20 +192,9 @@ def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, e
         st.error(f"Error al guardar en BD: {e}")
         return False
 
-# ESTILOS VISUALES
-hide_menu_style = """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stApp [data-testid="stToolbar"] {display: none;}
-    </style>
-"""
-st.markdown(hide_menu_style, unsafe_allow_html=True)
-
 st.title("🩺 Sistema de Biometría Fetal - Análisis Clínico")
 
-# 2. CARGA DE MODELOS YOLO
+# CARGA DE MODELOS YOLO
 @st.cache_resource
 def cargar_modelos():
     return YOLO('best.pt'), YOLO('best_lf_ca.pt')
@@ -117,7 +204,6 @@ try:
 except Exception as e:
     st.error(f"Error cargando modelos: {e}")
 
-# 3. FUNCIONES DEL PROYECTO
 def leer_dicom_bytes(file_bytes):
     ds = pydicom.dcmread(pydicom.filebase.BytesIO(file_bytes))
     imagen = ds.pixel_array
@@ -248,21 +334,15 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     
     return bytes(pdf.output())
 
-# PANEL LATERAL
+# PANEL LATERAL DE ECOGRAFISTA
 st.sidebar.title("Panel de Control")
 st.sidebar.markdown(f"**Dr.:** {st.session_state.operador_nombres} {st.session_state.operador_apellidos}")
-
 st.sidebar.divider()
+
 st.sidebar.header("📁 Carga de Archivos")
 archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
 procesar_btn = st.sidebar.button("🚀 Procesar Estudio Biométrico", type="primary", use_container_width=True)
 ver_db = st.sidebar.checkbox("Ver Base de Datos de Estudios")
-
-if st.sidebar.button("Cerrar Sesión / Cambiar Operador"):
-    st.session_state.autenticado = False
-    st.session_state.operador_registrado = False
-    st.session_state.estudio_procesado = False
-    st.rerun()
 
 if ver_db:
     st.subheader("📊 Historial General de Estudios Clínicos")
@@ -278,7 +358,7 @@ if ver_db:
         st.error(f"Error al consultar la base de datos: {e}")
     st.stop()
 
-# PROCESAMIENTO
+# PROCESAMIENTO DICOM E IA
 if archivos_subidos and procesar_btn:
     candidatos = []
     paci_nombre, paci_id, paci_fecha, paci_edad, paci_sexo, modalidad = "", "", "", "", "", ""
