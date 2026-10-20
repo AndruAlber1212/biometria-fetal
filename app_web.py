@@ -1,43 +1,37 @@
-import os
-import math
+import streamlit as st
+import psycopg2
+import pydicom
 import cv2
 import numpy as np
-import pydicom
-from ultralytics import YOLO
-import streamlit as st
+import math
+from datetime import datetime, timedelta
 from PIL import Image
+from fpdf import FPDF
+from ultralytics import YOLO
 import io
 import speech_recognition as sr
 from audio_recorder_streamlit import audio_recorder
-from fpdf import FPDF
-from datetime import datetime, timedelta
-import streamlit as st
-import psycopg2
-import streamlit as st
-import psycopg2
 import pandas as pd
 
-st.set_page_config(
-    page_title="Sistema de Biometría Fetal",
-    page_icon="icono.jpg",  
-    layout="wide"
-)
+# 1. CONFIGURACIÓN INICIAL DE LA PÁGINA
+st.set_page_config(page_title="Sistema de Biometría Fetal (SaMD)", page_icon="icono.jpg", layout="wide")
 
-st.set_page_config(page_title="Sistema de Biometría Fetal (SaMD)", layout="wide")
 URL_DB = "postgresql://neondb_owner:npg_5NYJUZt3PoRf@ep-empty-mouse-b5pz0137-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require"
 
 def conectar_db():
     return psycopg2.connect(URL_DB)
 
-
+# --- INICIALIZAR ESTADOS DE SESIÓN ---
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 if 'operador_registrado' not in st.session_state:
     st.session_state.operador_registrado = False
+if 'estudio_procesado' not in st.session_state:
+    st.session_state.estudio_procesado = False
 
 # FASE 1: PANTALLA DE LOGIN
 if not st.session_state.autenticado:
-    st.title(" Acceso al Sistema - Biometría Fetal")
+    st.title("🔐 Acceso al Sistema - Biometría Fetal")
     col1, _ = st.columns([1, 2])
     with col1:
         u = st.text_input("Usuario")
@@ -48,6 +42,7 @@ if not st.session_state.autenticado:
                 cur = conn.cursor()
                 cur.execute("SELECT nombre FROM usuarios WHERE usuario = %s AND password = %s", (u, p))
                 res = cur.fetchone()
+                cur.close()
                 conn.close()
                 if res:
                     st.session_state.autenticado = True
@@ -57,9 +52,10 @@ if not st.session_state.autenticado:
             except Exception as e:
                 st.error(f"Error de conexión: {e}")
     st.stop()
+
 # FASE 2: REGISTRO DEL OPERADOR
 if not st.session_state.operador_registrado:
-    st.title("Registro de Operador")
+    st.title("📋 Registro de Operador")
     with st.form("form_operador"):
         nombres_op = st.text_input("Nombres")
         apellidos_op = st.text_input("Apellidos")
@@ -76,6 +72,7 @@ if not st.session_state.operador_registrado:
             else:
                 st.warning("Complete Nombres, Apellidos y CI.")
     st.stop()
+
 # GUARDADO EN BD 
 def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, eg, fpp, pdf_link):
     try:
@@ -97,9 +94,7 @@ def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, e
         st.error(f"Error al guardar en BD: {e}")
         return False
 
-# 1. CONFIGURACIÓN Y ESTILOS
-st.set_page_config(page_title="Sistema de Biometría Fetal", layout="wide")
-
+# ESTILOS VISUALES
 hide_menu_style = """
     <style>
     #MainMenu {visibility: hidden;}
@@ -110,7 +105,7 @@ hide_menu_style = """
 """
 st.markdown(hide_menu_style, unsafe_allow_html=True)
 
-st.title(" Sistema de Biometría Fetal - Análisis Clínico")
+st.title("🩺 Sistema de Biometría Fetal - Análisis Clínico")
 
 # 2. CARGA DE MODELOS YOLO
 @st.cache_resource
@@ -200,12 +195,10 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf = FPDF()
     pdf.add_page()
     
-    # TIT
     pdf.set_font("helvetica", 'B', 16)
     pdf.cell(0, 10, "REPORTE CLINICO DE BIOMETRIA FETAL", ln=True, align='C')
     pdf.ln(5)
     
-    # DATOS DEL ESTUDIO
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "1. Datos del Estudio", ln=True)
     pdf.set_font("helvetica", '', 11)
@@ -217,14 +210,12 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.cell(0, 6, f"Fecha de Revision: {fecha_revision}", ln=True)
     pdf.ln(5)
     
-    # OBSERVACIONES MEDICAS
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "2. Observaciones Medicas", ln=True)
     pdf.set_font("helvetica", '', 11)
     pdf.multi_cell(0, 6, obs if obs.strip() else "Sin observaciones adicionales dictadas.")
     pdf.ln(5)
 
-    # RESULTADOS BIOMETRICOS
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "3. Resultados Biometricos", ln=True)
     pdf.set_font("helvetica", '', 11)
@@ -236,7 +227,7 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.set_font("helvetica", 'B', 11)
     pdf.cell(0, 6, f"Peso Estimado (PEF): {pef}  |  Edad Gestacional (EG): {eg}", ln=True)
     pdf.ln(5)
-    # EVIDENCIAS ECOGRAFICAS
+    
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "4. Evidencia Ecografica", ln=True)
     y_img = pdf.get_y()
@@ -250,7 +241,6 @@ def generar_pdf(medico_solicitante, paci_nombre, paci_edad, paci_sexo, paci_fech
     pdf.set_y(y_img + 60)
     pdf.ln(5)
 
-    # CONCLUSION ECOGRAFICA
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "5. Conclusion Ecografica", ln=True)
     pdf.set_font("helvetica", '', 11)
@@ -263,22 +253,19 @@ st.sidebar.title("Panel de Control")
 st.sidebar.markdown(f"**Dr.:** {st.session_state.operador_nombres} {st.session_state.operador_apellidos}")
 
 st.sidebar.divider()
-st.sidebar.header(" Carga de Archivos")
+st.sidebar.header("📁 Carga de Archivos")
 archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
-procesar_btn = st.sidebar.button(" Procesar Estudio Biométrico", type="primary", use_container_width=True)
+procesar_btn = st.sidebar.button("🚀 Procesar Estudio Biométrico", type="primary", use_container_width=True)
 ver_db = st.sidebar.checkbox("Ver Base de Datos de Estudios")
-
-if 'estudio_procesado' not in st.session_state:
-    st.session_state.estudio_procesado = False
 
 if st.sidebar.button("Cerrar Sesión / Cambiar Operador"):
     st.session_state.autenticado = False
     st.session_state.operador_registrado = False
-    st.session_state.estudio_ya_guardado = False
+    st.session_state.estudio_procesado = False
     st.rerun()
 
 if ver_db:
-    st.subheader("Historial General de Estudios Clínicos")
+    st.subheader("📊 Historial General de Estudios Clínicos")
     try:
         conn = conectar_db()
         df_estudios = pd.read_sql("SELECT * FROM estudios_ecograficos ORDER BY id DESC", conn)
@@ -383,7 +370,6 @@ if archivos_subidos and procesar_btn:
         pef_res, eg_res, sem, dias = calcular_biometria_fetal(val_dbp, val_cc, val_ca, val_lf)
         fpp_calculada = calcular_fpp(paci_fecha, sem, dias)
         
-        # Plantilla Conclusiones
         plantilla_conclusiones = (
             f"1) Embarazo de {eg_res} x ECO (+/- 21 días)\n"
             f"2) Presentación: Cefálica \n"
@@ -397,23 +383,23 @@ if archivos_subidos and procesar_btn:
             'paci_fecha': paci_fecha, 'paci_edad': paci_edad, 'paci_sexo': paci_sexo, 'modalidad': modalidad,
             'val_dbp': val_dbp, 'val_cc': val_cc, 'val_ca': val_ca, 'val_lf': val_lf,
             'pef_res': pef_res, 'eg_res': eg_res, 'img_head_res': img_head_res, 'img_body_res': img_body_res,
-            'plantilla_conclusiones': plantilla_conclusiones
+            'plantilla_conclusiones': plantilla_conclusiones,
+            'eg_semanas': sem, 'eg_dias': dias
         })
-
 
 # INTERFAZ DE RESULTADOS
 if st.session_state.estudio_procesado:
     ss = st.session_state
     
-    st.success(" Datos clínicos extraídos con éxito.")
+    st.success("✅ Datos clínicos extraídos con éxito.")
     col_p1, col_p2, col_p3 = st.columns(3)
-    col_p1.info(f"Paciente:{ss.paci_nombre}\n\nEdad: {ss.paci_edad}")
+    col_p1.info(f"Paciente: {ss.paci_nombre}\n\nEdad: {ss.paci_edad}")
     col_p2.info(f"ID: {ss.paci_id}\n\nSexo: {ss.paci_sexo}")
-    col_p3.info(f" Fecha: {ss.paci_fecha}\n\nModalidad: {ss.modalidad}")
+    col_p3.info(f"📅 Fecha: {ss.paci_fecha}\n\nModalidad: {ss.modalidad}")
 
     st.divider()
 
-    st.subheader(" Resultados de Biometría")
+    st.subheader("📏 Resultados de Biometría")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("DBP", f"{ss.val_dbp:.1f} mm" if ss.val_dbp else "--")
     c2.metric("CC", f"{ss.val_cc:.1f} mm" if ss.val_cc else "--")
@@ -431,7 +417,7 @@ if st.session_state.estudio_procesado:
     col_izq, col_der = st.columns(2)
     
     with col_izq:
-        st.subheader(" Observaciones Médicas")
+        st.subheader("📝 Observaciones Médicas")
         st.write("Haz clic en el micrófono para iniciar, y clic nuevamente para detener el dictado.")
         audio_bytes = audio_recorder(text="Grabar audio", icon_size="2x")
         texto_transcrito = ""
@@ -449,12 +435,12 @@ if st.session_state.estudio_procesado:
         observaciones = st.text_area("Texto de Observaciones:", value=texto_transcrito, height=150)
 
     with col_der:
-        st.subheader(" Conclusión Ecográfica")
+        st.subheader("📋 Conclusión Ecográfica")
         st.write("Rellena o modifica los hallazgos clínicos:")
         conclusiones_texto = st.text_area("Conclusiones para el PDF:", value=ss.plantilla_conclusiones, height=150)
 
     st.divider()
-    st.subheader(" Generación de Reporte")
+    st.subheader("📥 Generación de Reporte")
     
     pdf_bytes = generar_pdf(
         f"{st.session_state.operador_nombres} {st.session_state.operador_apellidos} (CI: {st.session_state.operador_ci})",
@@ -472,174 +458,25 @@ if st.session_state.estudio_procesado:
         use_container_width=True
     )
     
-    semanas_val = ss.get('eg_semanas', ss.get('semanas', 0))
-    dias_val = ss.get('eg_dias', ss.get('dias', 0))
-    fecha_revision_bolivia = (datetime.now() - timedelta(hours=4)).strftime("%d/%m/%Y %H:%M:%S")
-
+    semanas_val = ss.get('eg_semanas', 0)
+    dias_val = ss.get('eg_dias', 0)
     fpp_calculada_val = calcular_fpp(ss.get('paci_fecha', ''), semanas_val, dias_val)
+    
     # CONTROL DE DUPLICADOS
     clave_estudio_actual = f"{ss.get('paci_nombre', '')}_{ss.get('paci_fecha', '')}"
     if ss.get('ultimo_estudio_guardado') != clave_estudio_actual:
-        if not ss.get('estudio_ya_guardado', False):
-            fpp_a_guardar = locals().get('fpp_calculada', ss.get('fpp_resultado', 'No disponible'))
-            guardado_ok = guardar_estudio_automatico(
-                op_nom=st.session_state.get('operador_nombres', ''),
-                op_ape=st.session_state.get('operador_apellidos', ''),
-                op_ci=st.session_state.get('operador_ci', ''),
-                pac_nom=ss.get('paci_nombre', 'Desconocido'),
-                fecha_est=str(ss.get('paci_fecha', '')),
-                pef=str(ss.get('pef_res', '')),
-                eg=str(ss.get('eg_res', '')),
-                fpp=str(fpp_a_guardar),
-                pdf_link="reporte_biometria_fetal.pdf"
-            )
+        guardado_ok = guardar_estudio_automatico(
+            op_nom=st.session_state.get('operador_nombres', ''),
+            op_ape=st.session_state.get('operador_apellidos', ''),
+            op_ci=st.session_state.get('operador_ci', ''),
+            pac_nom=ss.get('paci_nombre', 'Desconocido'),
+            fecha_est=str(ss.get('paci_fecha', '')),
+            pef=str(ss.get('pef_res', '')),
+            eg=str(ss.get('eg_res', '')),
+            fpp=str(fpp_calculada_val),
+            pdf_link="reporte_biometria_fetal.pdf"
+        )
         
         if guardado_ok:
             ss.ultimo_estudio_guardado = clave_estudio_actual
-            st.success("Estudio guardado")
-#NUEVOS ROLES
-#1.PRIMER CODIGO INTENTO Inicio codigo:
-# Función auxiliar para conectar a la DB de Usuarios en Neon
-def get_db_connection_usuarios():
-    # Sustituye con tus credenciales/cadena de conexión de Neon para usuarios
-    return psycopg2.connect(st.secrets["NEON_USUARIOS_URL"])
-
-def modulo_operador():
-    st.title("⚙️ Panel de Administración - Operador")
-    st.subheader("Gestión de Personal y Control de Acceso")
-    
-    opcion = st.radio(
-        "Seleccione una acción:",
-        ["Crear Nuevo Usuario", "Ver / Listar Usuarios", "Editar / Eliminar Usuario"],
-        horizontal=True
-    )
-    
-    conn = get_db_connection_usuarios()
-    cursor = conn.cursor()
-    
-    # -------------------------------------------------------------
-    # 1. CREAR NUEVO USUARIO
-    # -------------------------------------------------------------
-    if opcion == "Crear Nuevo Usuario":
-        st.markdown("### 👤 Registrar Nuevo Usuario")
-        
-        with st.form("form_crear_usuario"):
-            col1, col2 = st.columns(2)
-            with col1:
-                nombre = st.text_input("Nombre")
-                usuario = st.text_input("Nombre de Usuario (Login)")
-                password = st.text_input("Contraseña", type="password")
-            with col2:
-                apellido = st.text_input("Apellido")
-                ci = st.text_input("Cédula de Identidad (CI)")
-                rol = st.selectbox(
-                    "Rol a Asignar",
-                    ["Médico Ecografista", "Médico Revisor", "Operador"]
-                )
-            
-            submit = st.form_submit_button("Guardar Usuario")
-            
-            if submit:
-                if not (nombre and apellido and usuario and password and ci):
-                    st.error("Por favor completa todos los campos del formulario.")
-                else:
-                    try:
-                        cursor.execute("""
-                            INSERT INTO usuarios (usuario, password, nombre, apellido, ci, rol)
-                            VALUES (%s, %s, %s, %s, %s, %s)
-                        """, (usuario, password, nombre, apellido, ci, rol))
-                        conn.commit()
-                        st.success(f"✅ Usuario '{usuario}' registrado exitosamente como **{rol}**.")
-                    except Exception as e:
-                        conn.rollback()
-                        st.error(f"Error al registrar usuario: {e}")
-
-    # -------------------------------------------------------------
-    # 2. LISTAR USUARIOS
-    # -------------------------------------------------------------
-    elif opcion == "Ver / Listar Usuarios":
-        st.markdown("### 📋 Usuarios Registrados en el Sistema")
-        try:
-            cursor.execute("SELECT id, nombre, apellido, ci, usuario, rol FROM usuarios ORDER BY id ASC;")
-            registros = cursor.fetchall()
-            
-            if registros:
-                # Convertimos a formato de tabla para Streamlit
-                datos_tabla = []
-                for r in registros:
-                    datos_tabla.append({
-                        "ID": r[0],
-                        "Nombre Completo": f"{r[1]} {r[2]}",
-                        "CI": r[3],
-                        "Usuario": r[4],
-                        "Rol Asignado": r[5]
-                    })
-                st.dataframe(datos_tabla, use_container_width=True)
-            else:
-                st.info("No hay usuarios registrados aparte del administrador.")
-        except Exception as e:
-            st.error(f"Error al obtener usuarios: {e}")
-
-    # -------------------------------------------------------------
-    # 3. EDITAR / ELIMINAR USUARIOS
-    # -------------------------------------------------------------
-    elif opcion == "Editar / Eliminar Usuario":
-        st.markdown("### ✏️ Modificar o Dar de Baja un Usuario")
-        try:
-            cursor.execute("SELECT id, usuario, nombre, apellido, rol FROM usuarios WHERE usuario != 'admin';")
-            usuarios_lista = cursor.fetchall()
-            
-            if not usuarios_lista:
-                st.info("No hay usuarios registrados que puedan modificarse.")
-            else:
-                opciones_dict = {f"{u[1]} ({u[2]} {u[3]} - {u[4]})": u[0] for u in usuarios_lista}
-                usuario_sel = st.selectbox("Seleccione el usuario a modificar:", list(opciones_dict.keys()))
-                id_usuario = opciones_dict[usuario_sel]
-                
-                # Cargar datos actuales
-                cursor.execute("SELECT nombre, apellido, ci, usuario, password, rol FROM usuarios WHERE id = %s;", (id_usuario,))
-                u_data = cursor.fetchone()
-                
-                col_edit, col_del = st.tabs(["Editar Datos", "Eliminar Usuario"])
-                
-                with col_edit:
-                    with st.form("form_editar_usuario"):
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            e_nombre = st.text_input("Nombre", value=u_data[0])
-                            e_usuario = st.text_input("Usuario", value=u_data[3])
-                            e_pass = st.text_input("Contraseña", value=u_data[4], type="password")
-                        with c2:
-                            e_apellido = st.text_input("Apellido", value=u_data[1])
-                            e_ci = st.text_input("CI", value=u_data[2])
-                            e_rol = st.selectbox(
-                                "Rol",
-                                ["Médico Ecografista", "Médico Revisor", "Operador"],
-                                index=["Médico Ecografista", "Médico Revisor", "Operador"].index(u_data[5])
-                            )
-                        
-                        btn_update = st.form_submit_button("Actualizar Usuario")
-                        if btn_update:
-                            cursor.execute("""
-                                UPDATE usuarios 
-                                SET nombre=%s, apellido=%s, ci=%s, usuario=%s, password=%s, rol=%s
-                                WHERE id=%s
-                            """, (e_nombre, e_apellido, e_ci, e_usuario, e_pass, e_rol, id_usuario))
-                            conn.commit()
-                            st.success("✅ Datos del usuario actualizados correctamente.")
-                            st.rerun()
-
-                with col_del:
-                    st.warning("⚠️ Esta acción es irreversible.")
-                    if st.button("🔴 Eliminar Definitivamente", type="primary"):
-                        cursor.execute("DELETE FROM usuarios WHERE id = %s;", (id_usuario,))
-                        conn.commit()
-                        st.success("Usuario eliminado con éxito.")
-                        st.rerun()
-                        
-        except Exception as e:
-            st.error(f"Error en la edición: {e}")
-            
-    cursor.close()
-    conn.close()
-#1.FIN CODIGO
+            st.success("Estudio guardado correctamente en la base de datos.")
