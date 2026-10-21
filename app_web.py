@@ -189,16 +189,22 @@ if st.session_state.rol == "operador":
 # =========================================================
 # 2. ROL: MÉDICO REVISOR (HISTORIAL, DESCARGA DE PDF Y DOBLE FIRMA)
 # =========================================================
+# =========================================================
+# 2. ROL: MÉDICO REVISOR (HISTORIAL, DESCARGA DE PDF Y DOBLE FIRMA)
+# =========================================================
 if st.session_state.rol == "revisor":
     st.title("📊 Panel de Médico Revisor - Historial y Reportes")
     st.markdown("Consulte los estudios ecográficos, descargue los reportes y agregue su validación clínica.")
     
     try:
         conn = conectar_db()
+        # 1. Cargamos el dataframe solo con datos de texto para la tabla
         df_revisor = pd.read_sql("SELECT id, operador_nombre, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto FROM estudios_ecograficos ORDER BY id DESC", conn)
+        
+        # 2. Consultamos los PDFs asegurando la conversión correcta a bytes desde memoryview
         cur = conn.cursor()
         cur.execute("SELECT id, paciente_nombre, pdf_bytes FROM estudios_ecograficos ORDER BY id DESC")
-        estudios_con_pdf = cur.fetchall()
+        resultados_brutos = cur.fetchall()
         cur.close()
         conn.close()
         
@@ -208,7 +214,16 @@ if st.session_state.rol == "revisor":
             st.divider()
             st.subheader("📥 Descarga y Validación de Reportes (PDF)")
             
-            opciones_pdf = {f"Estudio #{e[0]} - Paciente: {e[1]}": e[2] for e in estudios_con_pdf if e[2] is not None}
+            # Convertimos de manera segura los memoryview a bytes reales
+            opciones_pdf = {}
+            for row in resultados_brutos:
+                estudio_id = row[0]
+                paciente = row[1]
+                b_data = row[2]
+                if b_data is not None:
+                    # Forzamos la conversión a bytes por si viene como memoryview
+                    pdf_convertido = bytes(b_data)
+                    opciones_pdf[f"Estudio #{estudio_id} - Paciente: {paciente}"] = pdf_convertido
             
             if opciones_pdf:
                 estudio_elegido = st.selectbox("Seleccione el estudio para descargar el PDF:", list(opciones_pdf.keys()))
@@ -217,7 +232,7 @@ if st.session_state.rol == "revisor":
                 nombre_revisor = st.text_input("Ingrese su Nombre y Apellido (Médico Revisor):", value=f"Dr. {st.session_state.usuario_actual}")
                 
                 st.download_button(
-                    label="📄 Descargar PDF Validado (Con Doble Firma)",
+                    label="📄 Descargar PDF Validado",
                     data=pdf_binario,
                     file_name=f"Reporte_Revisado_{estudio_elegido.replace(' ', '_')}.pdf",
                     mime="application/pdf",
