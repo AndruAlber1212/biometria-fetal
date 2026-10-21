@@ -12,6 +12,7 @@ import io
 import speech_recognition as sr
 from audio_recorder_streamlit import audio_recorder
 import pandas as pd
+import altair as alt
 
 # 1. CONFIGURACIÓN INICIAL DE LA PÁGINA
 st.set_page_config(page_title="Sistema de Biometría Fetal (SaMD)", page_icon="icono.jpg", layout="wide")
@@ -30,6 +31,8 @@ def conectar_db():
             ADD COLUMN IF NOT EXISTS lf REAL,
             ADD COLUMN IF NOT EXISTS observaciones TEXT,
             ADD COLUMN IF NOT EXISTS conclusiones TEXT,
+            ADD COLUMN IF NOT EXISTS img_head BYTEA,
+            ADD COLUMN IF NOT EXISTS img_body BYTEA,
             ADD COLUMN IF NOT EXISTS pdf_bytes BYTEA;
         """)
         conn.commit()
@@ -204,10 +207,10 @@ if st.session_state.rol == "operador":
 
 
 # =========================================================
-# FUNCIÓN GENERADORA DE PDF CON DOBLE FIRMA
+# FUNCIÓN GENERADORA DE PDF CON DOBLE FIRMA Y DIAGNÓSTICO
 # =========================================================
 def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci_sexo, paci_fecha, modalidad, 
-                dbp, cc, ca, lf, pef, eg, obs, conclusiones, img_head, img_body):
+                dbp, cc, ca, lf, pef, eg, obs, conclusiones, diag_percentil, img_head, img_body):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("helvetica", 'B', 16)
@@ -242,15 +245,34 @@ def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci
     pdf.ln(2)
     pdf.set_font("helvetica", 'B', 11)
     pdf.cell(0, 6, f"Peso Estimado (PEF): {pef}  |  Edad Gestacional (EG): {eg}", ln=True)
-    pdf.ln(5)
+    pdf.ln(3)
+    
+    # Análisis de Percentil Detallado en PDF
+    pdf.set_font("helvetica", 'B', 11)
+    pdf.cell(0, 6, "Evaluación Percentilar y Crecimiento Fetal:", ln=True)
+    pdf.set_font("helvetica", '', 10)
+    pdf.multi_cell(0, 5, diag_percentil)
+    pdf.ln(4)
     
     pdf.set_font("helvetica", 'B', 12)
     pdf.cell(0, 8, "4. Evidencia Ecográfica", ln=True)
     y_img = pdf.get_y()
+    
+    # Manejo de imágenes guardadas en bytes para el PDF
     if img_head is not None:
-        pdf.image(Image.fromarray(img_head), x=20, y=y_img, w=75)
+        try:
+            img_h_np = cv2.imdecode(np.frombuffer(img_head, np.uint8), cv2.IMREAD_COLOR)
+            pdf.image(Image.fromarray(cv2.cvtColor(img_h_np, cv2.COLOR_BGR2RGB)), x=20, y=y_img, w=75)
+        except:
+            pass
+            
     if img_body is not None:
-        pdf.image(Image.fromarray(img_body), x=110, y=y_img, w=75)
+        try:
+            img_b_np = cv2.imdecode(np.frombuffer(img_body, np.uint8), cv2.IMREAD_COLOR)
+            pdf.image(Image.fromarray(cv2.cvtColor(img_b_np, cv2.COLOR_BGR2RGB)), x=110, y=y_img, w=75)
+        except:
+            pass
+            
     pdf.set_y(y_img + 60)
     pdf.ln(5)
     
@@ -270,11 +292,11 @@ if st.session_state.rol == "revisor":
     
     try:
         conn = conectar_db()
-        # Historial limpio como lo tenías originalmente (sin columnas vacías extra)
+        # Historial limpio original
         df_revisor = pd.read_sql("SELECT id, operador_nombre, operador_ci, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto, fecha_revision FROM estudios_ecograficos ORDER BY id DESC", conn)
         
         cur = conn.cursor()
-        cur.execute("SELECT id, operador_nombre, paciente_nombre, fecha_estudio, edad_gestacional, peso_fetal, dbp, cc, ca, lf, observaciones, conclusiones, pdf_bytes FROM estudios_ecograficos ORDER BY id DESC")
+        cur.execute("SELECT id, operador_nombre, paciente_nombre, fecha_estudio, edad_gestacional, peso_fetal, dbp, cc, ca, lf, observaciones, conclusiones, img_head, img_body, pdf_bytes FROM estudios_ecograficos ORDER BY id DESC")
         estudios_completos = cur.fetchall()
         cur.close()
         conn.close()
@@ -295,30 +317,30 @@ if st.session_state.rol == "revisor":
                 
                 if sel_eval_key:
                     ev_datos = opciones_eval[sel_eval_key]
-                    ev_id, ev_op, ev_pac, ev_fec, ev_eg, ev_pef_str, ev_dbp, ev_cc, ev_ca, ev_lf, _, _, _ = ev_datos
+                    ev_id, ev_op, ev_pac, ev_fec, ev_eg, ev_pef_str, ev_dbp, ev_cc, ev_ca, ev_lf, _, _, _, _, _ = ev_datos
                     
                     st.divider()
+                    # Letra más discreta y estética en los métricos
                     col_e1, col_e2, col_e3 = st.columns(3)
-                    col_e1.metric("Paciente", ev_pac)
-                    col_e2.metric("Peso Estimado (PEF)", ev_pef_str)
-                    col_e3.metric("Edad Gestacional", ev_eg)
+                    col_e1.markdown(f"**Paciente:**\n### {ev_pac}")
+                    col_e2.markdown(f"**Peso Estimado (PEF):**\n### {ev_pef_str}")
+                    col_e3.markdown(f"**Edad Gestacional:**\n### {ev_eg}")
                     
-                    # Extracción numérica aproximada de gramos para comparar con percentiles de referencia
-                    peso_g = 0
+                    # Extracción numérica de peso
+                    peso_g = 1500
                     try:
                         peso_g = float(''.join(filter(str.isdigit, ev_pef_str)))
                     except:
-                        peso_g = 1500 # Valor por defecto si no parsea
+                        pass
                         
-                    # Extracción de semanas numéricas
-                    semanas_num = 32 # por defecto
+                    # Extracción de semanas
+                    semanas_num = 32
                     try:
                         semanas_num = int(''.join(filter(str.isdigit, ev_eg.split("semanas")[0])))
                     except:
                         pass
                         
-                    # Tabla de referencia estándar Hadlock (P10, P50, P90 aproximados por semana)
-                    # Definimos un diccionario de referencia simple y robusto
+                    # Tabla de referencia Hadlock (P10, P50, P90)
                     tabla_ref = {
                         20: (300, 350, 420),
                         24: (530, 630, 750),
@@ -330,25 +352,55 @@ if st.session_state.rol == "revisor":
                         40: (2800, 3350, 3950)
                     }
                     
-                    # Buscar la semana más cercana en la tabla de referencia
                     semana_ref = min(tabla_ref.keys(), key=lambda x: abs(x - semanas_num))
                     p10, p50, p90 = tabla_ref[semana_ref]
                     
-                    st.markdown("#### 🔍 Evaluación y Conclusión Automática:")
+                    # Generar narrativa clínica detallada
                     if peso_g < p10:
-                        st.error(f"⚠️ **DIAGNÓSTICO ESTIMADO: PEG (Pequeño para la Edad Gestacional)**\n\nEl peso evaluado ({peso_g} g) se encuentra por debajo del Percentil 10 ({p10} g) para la edad gestacional de referencia (~{semana_ref} semanas). Se sugiere control estricto.")
+                        diag_texto = f"El peso estimado del feto es de {peso_g} gramos. Según el rango establecido para su edad gestacional (~{semana_ref} semanas), su valor se encuentra por debajo del Percentil 10 ({p10} g). Diagnóstico: PEG (Pequeño para la Edad Gestacional). Se encuentra por debajo del rango de normalidad esperado, por lo que se sugiere control médico estricto."
+                        st.error(f"⚠️ **DIAGNÓSTICO CLÍNICO: PEG**\n\n{diag_texto}")
                     elif peso_g > p90:
-                        st.warning(f"⚠️ **DIAGNÓSTICO ESTIMADO: GEG (Grande para la Edad Gestacional)**\n\nEl peso evaluado ({peso_g} g) se encuentra por encima del Percentil 90 ({p90} g) para la edad gestacional de referencia (~{semana_ref} semanas).")
+                        diag_texto = f"El peso estimado del feto es de {peso_g} gramos. Según el rango establecido para su edad gestacional (~{semana_ref} semanas), su valor se encuentra por encima del Percentil 90 ({p90} g). Diagnóstico: GEG (Grande para la Edad Gestacional). Se encuentra por encima del rango normal superior establecido."
+                        st.warning(f"⚠️ **DIAGNÓSTICO CLÍNICO: GEG**\n\n{diag_texto}")
                     else:
-                        st.success(f"✅ **DIAGNÓSTICO ESTIMADO: AEG (Adecuado para la Edad Gestacional)**\n\nEl peso evaluado ({peso_g} g) se encuentra dentro de los rangos normales (entre P10: {p10} g y P90: {p90} g) para la edad gestacional de referencia (~{semana_ref} semanas). ¡Todo en orden!")
+                        diag_texto = f"El peso estimado del feto es de {peso_g} gramos. Según el rango establecido entre el P10 ({p10} g) y el P90 ({p90} g) para su edad gestacional (~{semana_ref} semanas), su peso se encuentra dentro de los parámetros normales. Diagnóstico: AEG (Adecuado para la Edad Gestacional). Por ende, el crecimiento fetal es adecuado."
+                        st.success(f"✅ **DIAGNÓSTICO CLÍNICO: AEG**\n\n{diag_texto}")
                         
                     st.divider()
-                    st.write("📊 **Gráfica Comparativa de Referencia Universal (Hadlock):**")
-                    df_grafica = pd.DataFrame({
-                        'Percentil': ['P10 (Mínimo Normal)', 'P50 (Mediana)', 'P90 (Máximo Normal)', 'Valor del Feto (IA)'],
-                        'Peso (g)': [p10, p50, p90, peso_g]
+                    st.write("📊 **Gráfica Dinámica de Posición Percentilar (Hadlock):**")
+                    
+                    # Gráfica Altair interactiva con la curva de referencia y el punto del paciente
+                    df_curva = pd.DataFrame({
+                        'Percentil': ['P10 (Mínimo)', 'P50 (Mediana)', 'P90 (Máximo)'],
+                        'Peso_g': [p10, p50, p90]
                     })
-                    st.bar_chart(df_grafica.set_index('Percentil'))
+                    
+                    df_paciente = pd.DataFrame({
+                        'Percentil': ['Peso del Feto (IA)'],
+                        'Peso_g': [peso_g]
+                    })
+                    
+                    base = alt.Chart(df_curva).encode(
+                        x=alt.X('Percentil:N', sort=['P10 (Mínimo)', 'P50 (Mediana)', 'P90 (Máximo)'], title="Rangos de Referencia Hadlock"),
+                        y=alt.Y('Peso_g:Q', title="Peso (g)")
+                    )
+                    
+                    bars = base.mark_bar(opacity=0.6, color='skyblue')
+                    points = alt.Chart(df_paciente).mark_point(color='red', size=250, shape='diamond').encode(
+                        x=alt.X('Percentil:N'),
+                        y=alt.Y('Peso_g:Q', title="Peso (g)")
+                    )
+                    
+                    st.altair_chart(bars + points, use_container_width=True)
+                    st.caption("♦ El rombo rojo indica la ubicación exacta del peso calculado por la IA respecto a los percentiles estándar de referencia.")
+                    
+                    st.divider()
+                    st.subheader("📈 Resumen General de Estudios Registrados")
+                    st.metric("Total de Estudios en el Sistema", len(df_revisor))
+                    st.write("Distribución de estudios por Edad Gestacional:")
+                    if 'edad_gestacional' in df_revisor.columns:
+                        conteo_eg = df_revisor['edad_gestacional'].value_counts()
+                        st.bar_chart(conteo_eg)
 
             with tab_descarga:
                 st.subheader("📥 Generación de PDF con Validación y Doble Firma")
@@ -359,7 +411,7 @@ if st.session_state.rol == "revisor":
                     sel_key = st.selectbox("Seleccione un estudio clínico para descargar:", list(opciones_estudios.keys()))
                     datos_e = opciones_estudios[sel_key]
                     
-                    e_id, e_op, e_pac, e_fec, e_eg, e_pef, e_dbp, e_cc, e_ca, e_lf, e_obs, e_conc, _ = datos_e
+                    e_id, e_op, e_pac, e_fec, e_eg, e_pef, e_dbp, e_cc, e_ca, e_lf, e_obs, e_conc, e_img_head, e_img_body, _ = datos_e
                     
                     col_r1, col_r2 = st.columns(2)
                     with col_r1:
@@ -373,6 +425,25 @@ if st.session_state.rol == "revisor":
                     nombre_revisor_input = st.text_input("Ingrese su Nombre y Apellido (Médico Revisor):", value=f"Dr. {st.session_state.usuario_actual}")
                     
                     if st.button("📄 Generar y Descargar PDF con Doble Firma", type="primary"):
+                        # Recálculo del diagnóstico para el PDF
+                        try:
+                            p_val = float(''.join(filter(str.isdigit, e_pef)))
+                            s_val = int(''.join(filter(str.isdigit, e_eg.split("semanas")[0])))
+                        except:
+                            p_val, s_val = 1500, 32
+                            
+                        t_ref = {20: (300, 350, 420), 24: (530, 630, 750), 28: (1000, 1150, 1350), 32: (1550, 1800, 2100), 34: (1900, 2250, 2600), 36: (2250, 2650, 3100), 38: (2550, 3000, 3550), 40: (2800, 3350, 3950)}
+                        s_key = min(t_ref.keys(), key=lambda x: abs(x - s_val))
+                        p10_r, p50_r, p90_r = t_ref[s_key]
+                        
+                        if p_val < p10_r:
+                            diag_pdf = f"Peso estimado: {p_val}g. Por debajo de P10 ({p10_r}g). Diagnóstico: PEG (Pequeño para la Edad Gestacional). Control médico estricto."
+                        elif p_val > p90_r:
+                            diag_pdf = f"Peso estimado: {p_val}g. Por encima de P90 ({p90_r}g). Diagnóstico: GEG (Grande para la Edad Gestacional)."
+                        else:
+                            diag_pdf = f"Peso estimado: {p_val}g. Dentro del rango normal P10 ({p10_r}g) - P90 ({p90_r}g). Diagnóstico: AEG (Adecuado para la Edad Gestacional)."
+
+                        # Generar PDF con imágenes guardadas y textos editados originales
                         pdf_revisado_bytes = generar_pdf(
                             medico_ecografista=e_op,
                             medico_revisor=f"Dr. {nombre_revisor_input}",
@@ -389,8 +460,9 @@ if st.session_state.rol == "revisor":
                             eg=e_eg,
                             obs=e_obs if e_obs else "",
                             conclusiones=e_conc if e_conc else "",
-                            img_head=None,
-                            img_body=None
+                            diag_percentil=diag_pdf,
+                            img_head=e_img_head,
+                            img_body=e_img_body
                         )
                         
                         st.download_button(
@@ -437,25 +509,28 @@ st.sidebar.header("📁 Carga de Archivos")
 archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
 procesar_btn = st.sidebar.button("🚀 Procesar Estudio Biométrico", type="primary", use_container_width=True)
 
-def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, dbp, cc, ca, lf, pef, eg, fpp, obs, conc, pdf_bytes):
+def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, dbp, cc, ca, lf, pef, eg, fpp, obs, conc, img_h, img_b, pdf_bytes):
     try:
         conn = conectar_db()
         cur = conn.cursor()
         fecha_revision_exacta = datetime.now().strftime("%d/%m/%Y")
         
-        # Aseguramos casting explícito a float de Python estándar para evitar errores con np.float64
         val_dbp = float(dbp) if dbp is not None else None
         val_cc = float(cc) if cc is not None else None
         val_ca = float(ca) if ca is not None else None
         val_lf = float(lf) if lf is not None else None
 
+        # Codificar imágenes procesadas a bytes PNG para persistencia en BD
+        img_h_bytes = cv2.imencode('.png', cv2.cvtColor(img_h, cv2.COLOR_RGB2BGR))[1].tobytes() if img_h is not None else None
+        img_b_bytes = cv2.imencode('.png', cv2.cvtColor(img_b, cv2.COLOR_RGB2BGR))[1].tobytes() if img_b is not None else None
+
         sql = """
             INSERT INTO estudios_ecograficos 
-            (operador_nombre, operador_ci, paciente_nombre, fecha_estudio, dbp, cc, ca, lf, peso_fetal, edad_gestacional, fecha_probable_parto, observaciones, conclusiones, pdf_generado, fecha_revision, pdf_bytes) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (operador_nombre, operador_ci, paciente_nombre, fecha_estudio, dbp, cc, ca, lf, peso_fetal, edad_gestacional, fecha_probable_parto, observaciones, conclusiones, img_head, img_body, pdf_generado, fecha_revision, pdf_bytes) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         operador_completo = f"Dr. {op_nom} {op_ape}"
-        cur.execute(sql, (operador_completo, op_ci, pac_nom, fecha_est, val_dbp, val_cc, val_ca, val_lf, pef, eg, fpp, obs, conc, "reporte_biometria_fetal.pdf", fecha_revision_exacta, psycopg2.Binary(pdf_bytes)))
+        cur.execute(sql, (operador_completo, op_ci, pac_nom, fecha_est, val_dbp, val_cc, val_ca, val_lf, pef, eg, fpp, obs, conc, img_h_bytes, img_b_bytes, "reporte_biometria_fetal.pdf", fecha_revision_exacta, psycopg2.Binary(pdf_bytes)))
         conn.commit()
         cur.close()
         conn.close()
@@ -704,6 +779,24 @@ if st.session_state.estudio_procesado:
 
     st.divider()
     
+    # Cálculo previo del diagnóstico para el PDF del ecografista
+    try:
+        p_val_ecog = float(''.join(filter(str.isdigit, ss.pef_res)))
+        s_val_ecog = int(''.join(filter(str.isdigit, ss.eg_res.split("semanas")[0])))
+    except:
+        p_val_ecog, s_val_ecog = 1500, 32
+        
+    t_ref_ecog = {20: (300, 350, 420), 24: (530, 630, 750), 28: (1000, 1150, 1350), 32: (1550, 1800, 2100), 34: (1900, 2250, 2600), 36: (2250, 2650, 3100), 38: (2550, 3000, 3550), 40: (2800, 3350, 3950)}
+    s_key_ecog = min(t_ref_ecog.keys(), key=lambda x: abs(x - s_val_ecog))
+    p10_e, p50_e, p90_e = t_ref_ecog[s_key_ecog]
+    
+    if p_val_ecog < p10_e:
+        diag_str_ecog = f"Peso estimado: {p_val_ecog}g. Por debajo de P10 ({p10_e}g). Diagnóstico: PEG (Pequeño para la Edad Gestacional). Control médico estricto."
+    elif p_val_ecog > p90_e:
+        diag_str_ecog = f"Peso estimado: {p_val_ecog}g. Por encima de P90 ({p90_e}g). Diagnóstico: GEG (Grande para la Edad Gestacional)."
+    else:
+        diag_str_ecog = f"Peso estimado: {p_val_ecog}g. Dentro del rango normal P10 ({p10_e}g) - P90 ({p90_e}g). Diagnóstico: AEG (Adecuado para la Edad Gestacional)."
+
     nombre_completo_ecografista = f"Dr. {st.session_state.operador_nombres} {st.session_state.operador_apellidos} (CI: {st.session_state.operador_ci})"
     
     pdf_bytes = generar_pdf(
@@ -722,6 +815,7 @@ if st.session_state.estudio_procesado:
         eg=ss.eg_res,
         obs=observaciones,
         conclusiones=conclusiones_texto,
+        diag_percentil=diag_str_ecog,
         img_head=ss.img_head_res,
         img_body=ss.img_body_res
     )
@@ -735,7 +829,7 @@ if st.session_state.estudio_procesado:
         use_container_width=True
     )
     
-    # GUARDADO AUTOMÁTICO CON PARÁMETROS CLÍNICOS EN LA BD
+    # GUARDADO AUTOMÁTICO CON IMÁGENES Y PARÁMETROS EN LA BD
     clave_estudio_actual = f"{ss.get('paci_nombre', '')}_{ss.get('paci_fecha', '')}"
     if ss.get('ultimo_estudio_guardado') != clave_estudio_actual:
         guardado_ok = guardar_estudio_automatico(
@@ -753,8 +847,10 @@ if st.session_state.estudio_procesado:
             fpp=str(calcular_fpp(ss.get('paci_fecha', ''), ss.get('eg_semanas', 0), ss.get('eg_dias', 0))),
             obs=observaciones,
             conc=conclusiones_texto,
+            img_h=ss.img_head_res,
+            img_b=ss.img_body_res,
             pdf_bytes=pdf_bytes
         )
         if guardado_ok:
             ss.ultimo_estudio_guardado = clave_estudio_actual
-            st.success("Estudio y parámetros guardados correctamente en la base de datos.")
+            st.success("Estudio, imágenes y parámetros guardados correctamente en la base de datos.")
