@@ -12,8 +12,6 @@ import io
 import speech_recognition as sr
 from audio_recorder_streamlit import audio_recorder
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 
 # 1. CONFIGURACIÓN INICIAL DE LA PÁGINA
 st.set_page_config(page_title="Sistema de Biometría Fetal (SaMD)", page_icon="icono.jpg", layout="wide")
@@ -22,7 +20,6 @@ URL_DB = "postgresql://neondb_owner:npg_5NYJUZt3PoRf@ep-empty-mouse-b5pz0137-poo
 
 def conectar_db():
     conn = psycopg2.connect(URL_DB)
-    # Auto-asegurar columnas necesarias en la BD para evitar errores
     try:
         cur = conn.cursor()
         cur.execute("""
@@ -265,11 +262,11 @@ def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci
 
 
 # =========================================================
-# 2. ROL: MÉDICO REVISOR (HISTORIAL, PERCENTILES, ESTADÍSTICAS Y PDF)
+# 2. ROL: MÉDICO REVISOR (HISTORIAL, ESTADÍSTICAS Y PDF)
 # =========================================================
 if st.session_state.rol == "revisor":
     st.title("📊 Panel de Médico Revisor - Estadísticas y Doble Firma")
-    st.markdown("Consulte los estudios, analice las curvas de percentiles y descargue reportes validados.")
+    st.markdown("Consulte los estudios, revise los datos y descargue reportes validados.")
     
     try:
         conn = conectar_db()
@@ -282,27 +279,19 @@ if st.session_state.rol == "revisor":
         conn.close()
         
         if not df_revisor.empty:
-            # PESTAÑAS PARA EL REVISOR
-            tab_tabla, tab_stats, tab_descarga = st.tabs(["📋 Historial de Estudios", "📈 Curvas de Percentiles & Estadísticas", "📥 Descarga con Doble Firma"])
+            tab_tabla, tab_stats, tab_descarga = st.tabs(["📋 Historial de Estudios", "📈 Estadísticas", "📥 Descarga con Doble Firma"])
             
             with tab_tabla:
                 st.dataframe(df_revisor, use_container_width=True)
                 
             with tab_stats:
-                st.subheader("📈 Análisis Estadístico y Curvas de Crecimiento Fetal")
-                
-                # Gráfico interactivo de distribución de Peso Fetal Estimado (PEF)
+                st.subheader("📈 Resumen Estadístico de Estudios")
+                st.metric("Total de Estudios Registrados", len(df_revisor))
+                # Gráfico nativo rápido de Streamlit sin librerías externas
                 if 'peso_fetal' in df_revisor.columns:
-                    # Limpiar strings de peso a números aproximados para graficar
-                        fig_scatter = px.scatter(
-                            df_revisor, x='edad_gestacional', y='paciente_nombre',
-                            title="Estudios Registrados por Edad Gestacional",
-                            labels={'edad_gestacional': 'Edad Gestacional', 'paciente_nombre': 'Paciente'},
-                            template="plotly_dark"
-                        )
-                        st.plotly_chart(fig_scatter, use_container_width=True)
-                        
-                st.info("💡 Las curvas de percentiles Hadlock permiten clasificar fetos en AEG (Adecuado), PEG (Pequeño) y GEG (Grande).")
+                    st.write("Distribución de registros por Edad Gestacional:")
+                    conteo_eg = df_revisor['edad_gestacional'].value_counts()
+                    st.bar_chart(conteo_eg)
 
             with tab_descarga:
                 st.subheader("📥 Generación de PDF con Validación y Doble Firma")
@@ -313,7 +302,6 @@ if st.session_state.rol == "revisor":
                     sel_key = st.selectbox("Seleccione un estudio clínico:", list(opciones_estudios.keys()))
                     datos_e = opciones_estudios[sel_key]
                     
-                    # Extraer datos del estudio seleccionado
                     e_id, e_op, e_pac, e_fec, e_eg, e_pef, e_dbp, e_cc, e_ca, e_lf, e_obs, e_conc, _ = datos_e
                     
                     col_r1, col_r2 = st.columns(2)
@@ -328,7 +316,6 @@ if st.session_state.rol == "revisor":
                     nombre_revisor_input = st.text_input("Ingrese su Nombre y Apellido (Médico Revisor):", value=f"Dr. {st.session_state.usuario_actual}")
                     
                     if st.button("📄 Generar y Descargar PDF con Doble Firma", type="primary"):
-                        # Re-generamos el PDF al vuelo incluyendo al Revisor y al Ecografista original
                         pdf_revisado_bytes = generar_pdf(
                             medico_ecografista=e_op,
                             medico_revisor=f"Dr. {nombre_revisor_input}",
