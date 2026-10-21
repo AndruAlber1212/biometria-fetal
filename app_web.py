@@ -262,15 +262,16 @@ def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci
 
 
 # =========================================================
-# 2. ROL: MÉDICO REVISOR (HISTORIAL, ESTADÍSTICAS Y PDF)
+# 2. ROL: MÉDICO REVISOR (HISTORIAL LIMPIO, PERCENTILES Y DOBLE FIRMA)
 # =========================================================
 if st.session_state.rol == "revisor":
-    st.title("📊 Panel de Médico Revisor - Estadísticas y Doble Firma")
-    st.markdown("Consulte los estudios, revise los datos y descargue reportes validados.")
+    st.title("📊 Panel de Médico Revisor - Estadísticas y Percentiles")
+    st.markdown("Consulte el historial limpio de estudios, analice los percentiles y descargue reportes con doble firma.")
     
     try:
         conn = conectar_db()
-        df_revisor = pd.read_sql("SELECT id, operador_nombre, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, dbp, cc, ca, lf FROM estudios_ecograficos ORDER BY id DESC", conn)
+        # Historial limpio como lo tenías originalmente (sin columnas vacías extra)
+        df_revisor = pd.read_sql("SELECT id, operador_nombre, operador_ci, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto, fecha_revision FROM estudios_ecograficos ORDER BY id DESC", conn)
         
         cur = conn.cursor()
         cur.execute("SELECT id, operador_nombre, paciente_nombre, fecha_estudio, edad_gestacional, peso_fetal, dbp, cc, ca, lf, observaciones, conclusiones, pdf_bytes FROM estudios_ecograficos ORDER BY id DESC")
@@ -279,19 +280,75 @@ if st.session_state.rol == "revisor":
         conn.close()
         
         if not df_revisor.empty:
-            tab_tabla, tab_stats, tab_descarga = st.tabs(["📋 Historial de Estudios", "📈 Estadísticas", "📥 Descarga con Doble Firma"])
+            tab_tabla, tab_stats, tab_descarga = st.tabs(["📋 Historial de Estudios", "📈 Estadísticas & Percentiles", "📥 Descarga con Doble Firma"])
             
             with tab_tabla:
+                st.subheader("Historial General de Estudios Clínicos")
                 st.dataframe(df_revisor, use_container_width=True)
                 
             with tab_stats:
-                st.subheader("📈 Resumen Estadístico de Estudios")
-                st.metric("Total de Estudios Registrados", len(df_revisor))
-                # Gráfico nativo rápido de Streamlit sin librerías externas
-                if 'peso_fetal' in df_revisor.columns:
-                    st.write("Distribución de registros por Edad Gestacional:")
-                    conteo_eg = df_revisor['edad_gestacional'].value_counts()
-                    st.bar_chart(conteo_eg)
+                st.subheader("📈 Análisis y Comparación con Curvas de Percentiles (Hadlock)")
+                st.write("Seleccione un estudio registrado para evaluar su posición en las curvas universales de peso fetal:")
+                
+                opciones_eval = {f"Estudio #{e[0]} - {e[2]} (EG: {e[4]})": e for e in estudios_completos}
+                sel_eval_key = st.selectbox("Seleccione estudio para análisis percentilar:", list(opciones_eval.keys()))
+                
+                if sel_eval_key:
+                    ev_datos = opciones_eval[sel_eval_key]
+                    ev_id, ev_op, ev_pac, ev_fec, ev_eg, ev_pef_str, ev_dbp, ev_cc, ev_ca, ev_lf, _, _, _ = ev_datos
+                    
+                    st.divider()
+                    col_e1, col_e2, col_e3 = st.columns(3)
+                    col_e1.metric("Paciente", ev_pac)
+                    col_e2.metric("Peso Estimado (PEF)", ev_pef_str)
+                    col_e3.metric("Edad Gestacional", ev_eg)
+                    
+                    # Extracción numérica aproximada de gramos para comparar con percentiles de referencia
+                    peso_g = 0
+                    try:
+                        peso_g = float(''.join(filter(str.isdigit, ev_pef_str)))
+                    except:
+                        peso_g = 1500 # Valor por defecto si no parsea
+                        
+                    # Extracción de semanas numéricas
+                    semanas_num = 32 # por defecto
+                    try:
+                        semanas_num = int(''.join(filter(str.isdigit, ev_eg.split("semanas")[0])))
+                    except:
+                        pass
+                        
+                    # Tabla de referencia estándar Hadlock (P10, P50, P90 aproximados por semana)
+                    # Definimos un diccionario de referencia simple y robusto
+                    tabla_ref = {
+                        20: (300, 350, 420),
+                        24: (530, 630, 750),
+                        28: (1000, 1150, 1350),
+                        32: (1550, 1800, 2100),
+                        34: (1900, 2250, 2600),
+                        36: (2250, 2650, 3100),
+                        38: (2550, 3000, 3550),
+                        40: (2800, 3350, 3950)
+                    }
+                    
+                    # Buscar la semana más cercana en la tabla de referencia
+                    semana_ref = min(tabla_ref.keys(), key=lambda x: abs(x - semanas_num))
+                    p10, p50, p90 = tabla_ref[semana_ref]
+                    
+                    st.markdown("#### 🔍 Evaluación y Conclusión Automática:")
+                    if peso_g < p10:
+                        st.error(f"⚠️ **DIAGNÓSTICO ESTIMADO: PEG (Pequeño para la Edad Gestacional)**\n\nEl peso evaluado ({peso_g} g) se encuentra por debajo del Percentil 10 ({p10} g) para la edad gestacional de referencia (~{semana_ref} semanas). Se sugiere control estricto.")
+                    elif peso_g > p90:
+                        st.warning(f"⚠️ **DIAGNÓSTICO ESTIMADO: GEG (Grande para la Edad Gestacional)**\n\nEl peso evaluado ({peso_g} g) se encuentra por encima del Percentil 90 ({p90} g) para la edad gestacional de referencia (~{semana_ref} semanas).")
+                    else:
+                        st.success(f"✅ **DIAGNÓSTICO ESTIMADO: AEG (Adecuado para la Edad Gestacional)**\n\nEl peso evaluado ({peso_g} g) se encuentra dentro de los rangos normales (entre P10: {p10} g y P90: {p90} g) para la edad gestacional de referencia (~{semana_ref} semanas). ¡Todo en orden!")
+                        
+                    st.divider()
+                    st.write("📊 **Gráfica Comparativa de Referencia Universal (Hadlock):**")
+                    df_grafica = pd.DataFrame({
+                        'Percentil': ['P10 (Mínimo Normal)', 'P50 (Mediana)', 'P90 (Máximo Normal)', 'Valor del Feto (IA)'],
+                        'Peso (g)': [p10, p50, p90, peso_g]
+                    })
+                    st.bar_chart(df_grafica.set_index('Percentil'))
 
             with tab_descarga:
                 st.subheader("📥 Generación de PDF con Validación y Doble Firma")
@@ -299,7 +356,7 @@ if st.session_state.rol == "revisor":
                 opciones_estudios = {f"Estudio #{e[0]} - Paciente: {e[2]} (Ecografista: {e[1]})": e for e in estudios_completos}
                 
                 if opciones_estudios:
-                    sel_key = st.selectbox("Seleccione un estudio clínico:", list(opciones_estudios.keys()))
+                    sel_key = st.selectbox("Seleccione un estudio clínico para descargar:", list(opciones_estudios.keys()))
                     datos_e = opciones_estudios[sel_key]
                     
                     e_id, e_op, e_pac, e_fec, e_eg, e_pef, e_dbp, e_cc, e_ca, e_lf, e_obs, e_conc, _ = datos_e
@@ -324,10 +381,10 @@ if st.session_state.rol == "revisor":
                             paci_sexo="--",
                             paci_fecha=e_fec,
                             modalidad="US (Ultrasonido)",
-                            dbp=e_dbp if e_dbp else 0.0,
-                            cc=e_cc if e_cc else 0.0,
-                            ca=e_ca if e_ca else 0.0,
-                            lf=e_lf if e_lf else 0.0,
+                            dbp=float(e_dbp) if e_dbp is not None else 0.0,
+                            cc=float(e_cc) if e_cc is not None else 0.0,
+                            ca=float(e_ca) if e_ca is not None else 0.0,
+                            lf=float(e_lf) if e_lf is not None else 0.0,
                             pef=e_pef,
                             eg=e_eg,
                             obs=e_obs if e_obs else "",
@@ -385,13 +442,20 @@ def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, dbp, c
         conn = conectar_db()
         cur = conn.cursor()
         fecha_revision_exacta = datetime.now().strftime("%d/%m/%Y")
+        
+        # Aseguramos casting explícito a float de Python estándar para evitar errores con np.float64
+        val_dbp = float(dbp) if dbp is not None else None
+        val_cc = float(cc) if cc is not None else None
+        val_ca = float(ca) if ca is not None else None
+        val_lf = float(lf) if lf is not None else None
+
         sql = """
             INSERT INTO estudios_ecograficos 
             (operador_nombre, operador_ci, paciente_nombre, fecha_estudio, dbp, cc, ca, lf, peso_fetal, edad_gestacional, fecha_probable_parto, observaciones, conclusiones, pdf_generado, fecha_revision, pdf_bytes) 
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         operador_completo = f"Dr. {op_nom} {op_ape}"
-        cur.execute(sql, (operador_completo, op_ci, pac_nom, fecha_est, dbp, cc, ca, lf, pef, eg, fpp, obs, conc, "reporte_biometria_fetal.pdf", fecha_revision_exacta, psycopg2.Binary(pdf_bytes)))
+        cur.execute(sql, (operador_completo, op_ci, pac_nom, fecha_est, val_dbp, val_cc, val_ca, val_lf, pef, eg, fpp, obs, conc, "reporte_biometria_fetal.pdf", fecha_revision_exacta, psycopg2.Binary(pdf_bytes)))
         conn.commit()
         cur.close()
         conn.close()
