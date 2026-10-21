@@ -12,6 +12,8 @@ import io
 import speech_recognition as sr
 from audio_recorder_streamlit import audio_recorder
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 
 # 1. CONFIGURACIÓN INICIAL DE LA PÁGINA
 st.set_page_config(page_title="Sistema de Biometría Fetal (SaMD)", page_icon="icono.jpg", layout="wide")
@@ -19,7 +21,25 @@ st.set_page_config(page_title="Sistema de Biometría Fetal (SaMD)", page_icon="i
 URL_DB = "postgresql://neondb_owner:npg_5NYJUZt3PoRf@ep-empty-mouse-b5pz0137-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require"
 
 def conectar_db():
-    return psycopg2.connect(URL_DB)
+    conn = psycopg2.connect(URL_DB)
+    # Auto-asegurar columnas necesarias en la BD para evitar errores
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            ALTER TABLE estudios_ecograficos 
+            ADD COLUMN IF NOT EXISTS dbp REAL,
+            ADD COLUMN IF NOT EXISTS cc REAL,
+            ADD COLUMN IF NOT EXISTS ca REAL,
+            ADD COLUMN IF NOT EXISTS lf REAL,
+            ADD COLUMN IF NOT EXISTS observaciones TEXT,
+            ADD COLUMN IF NOT EXISTS conclusiones TEXT,
+            ADD COLUMN IF NOT EXISTS pdf_bytes BYTEA;
+        """)
+        conn.commit()
+        cur.close()
+    except:
+        pass
+    return conn
 
 # --- INICIALIZAR ESTADOS DE SESIÓN ---
 if 'autenticado' not in st.session_state:
@@ -91,7 +111,7 @@ st.sidebar.divider()
 
 
 # =========================================================
-# 1. ROL: OPERADOR (GESTIÓN SEGURA DE USUARIOS)
+# 1. ROL: OPERADOR (GESTIÓN DE USUARIOS)
 # =========================================================
 if st.session_state.rol == "operador":
     st.title("⚙️ Panel de Administración - Operador")
@@ -187,63 +207,161 @@ if st.session_state.rol == "operador":
 
 
 # =========================================================
-# 2. ROL: MÉDICO REVISOR (HISTORIAL, DESCARGA DE PDF Y DOBLE FIRMA)
+# FUNCIÓN GENERADORA DE PDF CON DOBLE FIRMA
 # =========================================================
+def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci_sexo, paci_fecha, modalidad, 
+                dbp, cc, ca, lf, pef, eg, obs, conclusiones, img_head, img_body):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", 'B', 16)
+    pdf.cell(0, 10, "REPORTE CLINICO DE BIOMETRIA FETAL", ln=True, align='C')
+    pdf.ln(5)
+    
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 8, "1. Datos del Estudio y Personal Médico", ln=True)
+    pdf.set_font("helvetica", '', 11)
+    pdf.cell(0, 6, f"MÉDICO ECOGRAFISTA: {medico_ecografista}", ln=True)
+    if medico_revisor and medico_revisor.strip():
+        pdf.cell(0, 6, f"MÉDICO REVISOR: {medico_revisor}", ln=True)
+    pdf.cell(0, 6, f"Paciente: {paci_nombre}", ln=True)
+    pdf.cell(0, 6, f"Edad: {paci_edad}  |  Sexo: {paci_sexo}  |  Modalidad: {modalidad}", ln=True)
+    pdf.cell(0, 6, f"Fecha de Estudio: {paci_fecha}", ln=True)
+    pdf.cell(0, 6, f"Fecha de Revisión: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
+    pdf.ln(5)
+    
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 8, "2. Observaciones Médicas", ln=True)
+    pdf.set_font("helvetica", '', 11)
+    pdf.multi_cell(0, 6, obs if obs.strip() else "Sin observaciones adicionales dictadas.")
+    pdf.ln(5)
+    
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 8, "3. Resultados Biométricos", ln=True)
+    pdf.set_font("helvetica", '', 11)
+    pdf.cell(90, 6, f"DBP: {dbp:.1f} mm" if dbp else "DBP: --", ln=False)
+    pdf.cell(90, 6, f"CC: {cc:.1f} mm" if cc else "CC: --", ln=True)
+    pdf.cell(90, 6, f"CA: {ca:.1f} mm" if ca else "CA: --", ln=False)
+    pdf.cell(90, 6, f"LF: {lf:.1f} mm" if lf else "LF: --", ln=True)
+    pdf.ln(2)
+    pdf.set_font("helvetica", 'B', 11)
+    pdf.cell(0, 6, f"Peso Estimado (PEF): {pef}  |  Edad Gestacional (EG): {eg}", ln=True)
+    pdf.ln(5)
+    
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 8, "4. Evidencia Ecográfica", ln=True)
+    y_img = pdf.get_y()
+    if img_head is not None:
+        pdf.image(Image.fromarray(img_head), x=20, y=y_img, w=75)
+    if img_body is not None:
+        pdf.image(Image.fromarray(img_body), x=110, y=y_img, w=75)
+    pdf.set_y(y_img + 60)
+    pdf.ln(5)
+    
+    pdf.set_font("helvetica", 'B', 12)
+    pdf.cell(0, 8, "5. Conclusión Ecográfica", ln=True)
+    pdf.set_font("helvetica", '', 11)
+    pdf.multi_cell(0, 6, conclusiones)
+    return bytes(pdf.output())
+
+
 # =========================================================
-# 2. ROL: MÉDICO REVISOR (HISTORIAL, DESCARGA DE PDF Y DOBLE FIRMA)
+# 2. ROL: MÉDICO REVISOR (HISTORIAL, PERCENTILES, ESTADÍSTICAS Y PDF)
 # =========================================================
 if st.session_state.rol == "revisor":
-    st.title("📊 Panel de Médico Revisor - Historial y Reportes")
-    st.markdown("Consulte los estudios ecográficos, descargue los reportes y agregue su validación clínica.")
+    st.title("📊 Panel de Médico Revisor - Estadísticas y Doble Firma")
+    st.markdown("Consulte los estudios, analice las curvas de percentiles y descargue reportes validados.")
     
     try:
         conn = conectar_db()
-        # 1. Cargamos el dataframe solo con datos de texto para la tabla
-        df_revisor = pd.read_sql("SELECT id, operador_nombre, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto FROM estudios_ecograficos ORDER BY id DESC", conn)
+        df_revisor = pd.read_sql("SELECT id, operador_nombre, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, dbp, cc, ca, lf FROM estudios_ecograficos ORDER BY id DESC", conn)
         
-        # 2. Consultamos los PDFs asegurando la conversión correcta a bytes desde memoryview
         cur = conn.cursor()
-        cur.execute("SELECT id, paciente_nombre, pdf_bytes FROM estudios_ecograficos ORDER BY id DESC")
-        resultados_brutos = cur.fetchall()
+        cur.execute("SELECT id, operador_nombre, paciente_nombre, fecha_estudio, edad_gestacional, peso_fetal, dbp, cc, ca, lf, observaciones, conclusiones, pdf_bytes FROM estudios_ecograficos ORDER BY id DESC")
+        estudios_completos = cur.fetchall()
         cur.close()
         conn.close()
         
         if not df_revisor.empty:
-            st.dataframe(df_revisor, use_container_width=True)
+            # PESTAÑAS PARA EL REVISOR
+            tab_tabla, tab_stats, tab_descarga = st.tabs(["📋 Historial de Estudios", "📈 Curvas de Percentiles & Estadísticas", "📥 Descarga con Doble Firma"])
             
-            st.divider()
-            st.subheader("📥 Descarga y Validación de Reportes (PDF)")
-            
-            # Convertimos de manera segura los memoryview a bytes reales
-            opciones_pdf = {}
-            for row in resultados_brutos:
-                estudio_id = row[0]
-                paciente = row[1]
-                b_data = row[2]
-                if b_data is not None:
-                    # Forzamos la conversión a bytes por si viene como memoryview
-                    pdf_convertido = bytes(b_data)
-                    opciones_pdf[f"Estudio #{estudio_id} - Paciente: {paciente}"] = pdf_convertido
-            
-            if opciones_pdf:
-                estudio_elegido = st.selectbox("Seleccione el estudio para descargar el PDF:", list(opciones_pdf.keys()))
-                pdf_binario = opciones_pdf[estudio_elegido]
+            with tab_tabla:
+                st.dataframe(df_revisor, use_container_width=True)
                 
-                nombre_revisor = st.text_input("Ingrese su Nombre y Apellido (Médico Revisor):", value=f"Dr. {st.session_state.usuario_actual}")
+            with tab_stats:
+                st.subheader("📈 Análisis Estadístico y Curvas de Crecimiento Fetal")
                 
-                st.download_button(
-                    label="📄 Descargar PDF Validado",
-                    data=pdf_binario,
-                    file_name=f"Reporte_Revisado_{estudio_elegido.replace(' ', '_')}.pdf",
-                    mime="application/pdf",
-                    type="primary"
-                )
-            else:
-                st.info("No hay archivos PDF almacenados en la base de datos todavía para descargar.")
+                # Gráfico interactivo de distribución de Peso Fetal Estimado (PEF)
+                if 'peso_fetal' in df_revisor.columns:
+                    # Limpiar strings de peso a números aproximados para graficar
+                        fig_scatter = px.scatter(
+                            df_revisor, x='edad_gestacional', y='paciente_nombre',
+                            title="Estudios Registrados por Edad Gestacional",
+                            labels={'edad_gestacional': 'Edad Gestacional', 'paciente_nombre': 'Paciente'},
+                            template="plotly_dark"
+                        )
+                        st.plotly_chart(fig_scatter, use_container_width=True)
+                        
+                st.info("💡 Las curvas de percentiles Hadlock permiten clasificar fetos en AEG (Adecuado), PEG (Pequeño) y GEG (Grande).")
+
+            with tab_descarga:
+                st.subheader("📥 Generación de PDF con Validación y Doble Firma")
+                
+                opciones_estudios = {f"Estudio #{e[0]} - Paciente: {e[2]} (Ecografista: {e[1]})": e for e in estudios_completos}
+                
+                if opciones_estudios:
+                    sel_key = st.selectbox("Seleccione un estudio clínico:", list(opciones_estudios.keys()))
+                    datos_e = opciones_estudios[sel_key]
+                    
+                    # Extraer datos del estudio seleccionado
+                    e_id, e_op, e_pac, e_fec, e_eg, e_pef, e_dbp, e_cc, e_ca, e_lf, e_obs, e_conc, _ = datos_e
+                    
+                    col_r1, col_r2 = st.columns(2)
+                    with col_r1:
+                        st.write(f"**Paciente:** {e_pac}")
+                        st.write(f"**Ecografista Original:** {e_op}")
+                        st.write(f"**Fecha:** {e_fec}")
+                    with col_r2:
+                        st.write(f"**Peso Fetal:** {e_pef}")
+                        st.write(f"**Edad Gestacional:** {e_eg}")
+                        
+                    nombre_revisor_input = st.text_input("Ingrese su Nombre y Apellido (Médico Revisor):", value=f"Dr. {st.session_state.usuario_actual}")
+                    
+                    if st.button("📄 Generar y Descargar PDF con Doble Firma", type="primary"):
+                        # Re-generamos el PDF al vuelo incluyendo al Revisor y al Ecografista original
+                        pdf_revisado_bytes = generar_pdf(
+                            medico_ecografista=e_op,
+                            medico_revisor=f"Dr. {nombre_revisor_input}",
+                            paci_nombre=e_pac,
+                            paci_edad="--",
+                            paci_sexo="--",
+                            paci_fecha=e_fec,
+                            modalidad="US (Ultrasonido)",
+                            dbp=e_dbp if e_dbp else 0.0,
+                            cc=e_cc if e_cc else 0.0,
+                            ca=e_ca if e_ca else 0.0,
+                            lf=e_lf if e_lf else 0.0,
+                            pef=e_pef,
+                            eg=e_eg,
+                            obs=e_obs if e_obs else "",
+                            conclusiones=e_conc if e_conc else "",
+                            img_head=None,
+                            img_body=None
+                        )
+                        
+                        st.download_button(
+                            label="📥 Descargar Archivo PDF Final Validado",
+                            data=pdf_revisado_bytes,
+                            file_name=f"Reporte_DobleFirma_Estudio_{e_id}.pdf",
+                            mime="application/pdf",
+                            type="primary"
+                        )
+                else:
+                    st.info("No hay estudios disponibles para revisar.")
         else:
-            st.info("No hay estudios ecográficos registrados en el sistema.")
+            st.info("No hay estudios registrados en el sistema.")
     except Exception as e:
-        st.error(f"Error al cargar la base de datos: {e}")
+        st.error(f"Error al cargar el panel de revisión: {e}")
         
     st.stop()
 
@@ -275,18 +393,18 @@ st.sidebar.header("📁 Carga de Archivos")
 archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
 procesar_btn = st.sidebar.button("🚀 Procesar Estudio Biométrico", type="primary", use_container_width=True)
 
-def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, pef, eg, fpp, pdf_bytes):
+def guardar_estudio_automatico(op_nom, op_ape, op_ci, pac_nom, fecha_est, dbp, cc, ca, lf, pef, eg, fpp, obs, conc, pdf_bytes):
     try:
         conn = conectar_db()
         cur = conn.cursor()
         fecha_revision_exacta = datetime.now().strftime("%d/%m/%Y")
         sql = """
             INSERT INTO estudios_ecograficos 
-            (operador_nombre, operador_ci, paciente_nombre, fecha_estudio, peso_fetal, edad_gestacional, fecha_probable_parto, pdf_generado, fecha_revision, pdf_bytes) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (operador_nombre, operador_ci, paciente_nombre, fecha_estudio, dbp, cc, ca, lf, peso_fetal, edad_gestacional, fecha_probable_parto, observaciones, conclusiones, pdf_generado, fecha_revision, pdf_bytes) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         operador_completo = f"Dr. {op_nom} {op_ape}"
-        cur.execute(sql, (operador_completo, op_ci, pac_nom, fecha_est, pef, eg, fpp, "reporte_biometria_fetal.pdf", fecha_revision_exacta, psycopg2.Binary(pdf_bytes)))
+        cur.execute(sql, (operador_completo, op_ci, pac_nom, fecha_est, dbp, cc, ca, lf, pef, eg, fpp, obs, conc, "reporte_biometria_fetal.pdf", fecha_revision_exacta, psycopg2.Binary(pdf_bytes)))
         conn.commit()
         cur.close()
         conn.close()
@@ -374,53 +492,6 @@ def calcular_fpp(fecha_estudio_str, sem, dias):
         return fecha_fpp.strftime("%d/%m/%Y")
     except:
         return "--"
-
-def generar_pdf(medico_ecografista, paci_nombre, paci_edad, paci_sexo, paci_fecha, modalidad, 
-                dbp, cc, ca, lf, pef, eg, obs, conclusiones, img_head, img_body):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("helvetica", 'B', 16)
-    pdf.cell(0, 10, "REPORTE CLINICO DE BIOMETRIA FETAL", ln=True, align='C')
-    pdf.ln(5)
-    pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "1. Datos del Estudio y Personal Médico", ln=True)
-    pdf.set_font("helvetica", '', 11)
-    pdf.cell(0, 6, f"MÉDICO ECOGRAFISTA: {medico_ecografista}", ln=True)
-    pdf.cell(0, 6, f"Paciente: {paci_nombre}", ln=True)
-    pdf.cell(0, 6, f"Edad: {paci_edad}  |  Sexo: {paci_sexo}  |  Modalidad: {modalidad}", ln=True)
-    pdf.cell(0, 6, f"Fecha de Estudio: {paci_fecha}", ln=True)
-    pdf.cell(0, 6, f"Fecha de Revisión: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
-    pdf.ln(5)
-    pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "2. Observaciones Médicas", ln=True)
-    pdf.set_font("helvetica", '', 11)
-    pdf.multi_cell(0, 6, obs if obs.strip() else "Sin observaciones adicionales dictadas.")
-    pdf.ln(5)
-    pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "3. Resultados Biométricos", ln=True)
-    pdf.set_font("helvetica", '', 11)
-    pdf.cell(90, 6, f"DBP: {dbp:.1f} mm" if dbp else "DBP: --", ln=False)
-    pdf.cell(90, 6, f"CC: {cc:.1f} mm" if cc else "CC: --", ln=True)
-    pdf.cell(90, 6, f"CA: {ca:.1f} mm" if ca else "CA: --", ln=False)
-    pdf.cell(90, 6, f"LF: {lf:.1f} mm" if lf else "LF: --", ln=True)
-    pdf.ln(2)
-    pdf.set_font("helvetica", 'B', 11)
-    pdf.cell(0, 6, f"Peso Estimado (PEF): {pef}  |  Edad Gestacional (EG): {eg}", ln=True)
-    pdf.ln(5)
-    pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "4. Evidencia Ecográfica", ln=True)
-    y_img = pdf.get_y()
-    if img_head is not None:
-        pdf.image(Image.fromarray(img_head), x=20, y=y_img, w=75)
-    if img_body is not None:
-        pdf.image(Image.fromarray(img_body), x=110, y=y_img, w=75)
-    pdf.set_y(y_img + 60)
-    pdf.ln(5)
-    pdf.set_font("helvetica", 'B', 12)
-    pdf.cell(0, 8, "5. Conclusión Ecográfica", ln=True)
-    pdf.set_font("helvetica", '', 11)
-    pdf.multi_cell(0, 6, conclusiones)
-    return bytes(pdf.output())
 
 # PROCESAMIENTO DICOM E IA
 if archivos_subidos and procesar_btn:
@@ -585,10 +656,23 @@ if st.session_state.estudio_procesado:
     nombre_completo_ecografista = f"Dr. {st.session_state.operador_nombres} {st.session_state.operador_apellidos} (CI: {st.session_state.operador_ci})"
     
     pdf_bytes = generar_pdf(
-        nombre_completo_ecografista,
-        ss.paci_nombre, ss.paci_edad, ss.paci_sexo, ss.paci_fecha, ss.modalidad,
-        ss.val_dbp, ss.val_cc, ss.val_ca, ss.val_lf,
-        ss.pef_res, ss.eg_res, observaciones, conclusiones_texto, ss.img_head_res, ss.img_body_res
+        medico_ecografista=nombre_completo_ecografista,
+        medico_revisor="",
+        paci_nombre=ss.paci_nombre,
+        paci_edad=ss.paci_edad,
+        paci_sexo=ss.paci_sexo,
+        paci_fecha=ss.paci_fecha,
+        modalidad=ss.modalidad,
+        dbp=ss.val_dbp,
+        cc=ss.val_cc,
+        ca=ss.val_ca,
+        lf=ss.val_lf,
+        pef=ss.pef_res,
+        eg=ss.eg_res,
+        obs=observaciones,
+        conclusiones=conclusiones_texto,
+        img_head=ss.img_head_res,
+        img_body=ss.img_body_res
     )
     
     st.download_button(
@@ -600,7 +684,7 @@ if st.session_state.estudio_procesado:
         use_container_width=True
     )
     
-    # GUARDADO AUTOMÁTICO CON LOS BYTES DEL PDF EN LA BD
+    # GUARDADO AUTOMÁTICO CON PARÁMETROS CLÍNICOS EN LA BD
     clave_estudio_actual = f"{ss.get('paci_nombre', '')}_{ss.get('paci_fecha', '')}"
     if ss.get('ultimo_estudio_guardado') != clave_estudio_actual:
         guardado_ok = guardar_estudio_automatico(
@@ -609,11 +693,17 @@ if st.session_state.estudio_procesado:
             op_ci=st.session_state.get('operador_ci', ''),
             pac_nom=ss.get('paci_nombre', 'Desconocido'),
             fecha_est=str(ss.get('paci_fecha', '')),
+            dbp=ss.get('val_dbp', 0),
+            cc=ss.get('val_cc', 0),
+            ca=ss.get('val_ca', 0),
+            lf=ss.get('val_lf', 0),
             pef=str(ss.get('pef_res', '')),
             eg=str(ss.get('eg_res', '')),
             fpp=str(calcular_fpp(ss.get('paci_fecha', ''), ss.get('eg_semanas', 0), ss.get('eg_dias', 0))),
+            obs=observaciones,
+            conc=conclusiones_texto,
             pdf_bytes=pdf_bytes
         )
         if guardado_ok:
             ss.ultimo_estudio_guardado = clave_estudio_actual
-            st.success("Estudio y reporte PDF guardados correctamente en la base de datos.")
+            st.success("Estudio y parámetros guardados correctamente en la base de datos.")
