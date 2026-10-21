@@ -403,7 +403,7 @@ if st.session_state.rol == "revisor":
                         st.bar_chart(conteo_eg)
 
             with tab_descarga:
-                st.subheader("📥 Generación de PDF con Validación y Doble Firma")
+                st.subheader("Generación de PDF")
                 
                 opciones_estudios = {f"Estudio #{e[0]} - Paciente: {e[2]} (Ecografista: {e[1]})": e for e in estudios_completos}
                 
