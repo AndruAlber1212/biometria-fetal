@@ -416,7 +416,7 @@ if st.session_state.rol == "revisor":
                     col_r1, col_r2 = st.columns(2)
                     with col_r1:
                         st.write(f"**Paciente:** {e_pac}")
-                        st.write(f"**Ecografista Original:** {e_op}")
+                        st.write(f"**Ecografista:** {e_op}")
                         st.write(f"**Fecha:** {e_fec}")
                     with col_r2:
                         st.write(f"**Peso Fetal:** {e_pef}")
