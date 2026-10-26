@@ -25,21 +25,20 @@ def conectar_db():
     try:
         cur = conn.cursor()
         cur.execute("""
-            ALTER TABLE estudios_ecograficos 
-            ADD COLUMN IF NOT EXISTS dbp REAL,
-            ADD COLUMN IF NOT EXISTS cc REAL,
-            ADD COLUMN IF NOT EXISTS ca REAL,
-            ADD COLUMN IF NOT EXISTS lf REAL,
-            ADD COLUMN IF NOT EXISTS observaciones TEXT,
-            ADD COLUMN IF NOT EXISTS conclusiones TEXT,
-            ADD COLUMN IF NOT EXISTS img_head BYTEA,
-            ADD COLUMN IF NOT EXISTS img_body BYTEA,
-            ADD COLUMN IF NOT EXISTS pdf_bytes BYTEA;
+        ALTER TABLE estudios_ecograficos 
+        ADD COLUMN IF NOT EXISTS dbp REAL,
+        ADD COLUMN IF NOT EXISTS cc REAL,
+        ADD COLUMN IF NOT EXISTS ca REAL,
+        ADD COLUMN IF NOT EXISTS lf REAL,
+        ADD COLUMN IF NOT EXISTS observaciones TEXT,
+        ADD COLUMN IF NOT EXISTS conclusiones TEXT,
+        ADD COLUMN IF NOT EXISTS img_head BYTEA,
+        ADD COLUMN IF NOT EXISTS img_body BYTEA,
+        ADD COLUMN IF NOT EXISTS pdf_bytes BYTEA;
         """)
         conn.commit()
         cur.close()
-    except:
-        pass
+    except: pass
     return conn
 
 # --- INICIALIZAR ESTADOS DE SESIÓN ---
@@ -67,6 +66,397 @@ hide_menu_style = """
 """
 st.markdown(hide_menu_style, unsafe_allow_html=True)
 
+# =========================================================
+# ESTILOS PERSONALIZADOS (PALETA, TIPOGRAFÍA Y COMPONENTES)
+# =========================================================
+estilos_personalizados = """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+    :root {
+        --bio-navy: #0a3552;
+        --bio-navy-2: #0c4a6b;
+        --bio-teal: #0e7490;
+        --bio-aqua: #14b8a6;
+        --bio-mint: #5eead4;
+        --bio-card: #ffffff;
+        --bio-text: #1b2a38;
+        --bio-muted: #5a6b7b;
+        --bio-border: #d3e3ec;
+        --bio-soft: #e4f2f6;
+        --bio-shadow: 0 6px 20px rgba(10, 53, 82, 0.09);
+    }
+
+    html { color-scheme: light; }
+
+    /* ---------- Fondo general ---------- */
+    .stApp {
+        background: linear-gradient(140deg, #e8f3f8 0%, #f6fafc 48%, #e1f0f3 100%);
+        background-attachment: fixed;
+    }
+    [data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
+        background: transparent;
+    }
+    .block-container {
+        padding-top: 2.4rem;
+        padding-bottom: 3rem;
+    }
+
+    /* ---------- Tipografía ---------- */
+    .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
+    .stApp p, .stApp label, .stApp li, .stApp button, .stApp input, .stApp textarea {
+        font-family: 'Manrope', 'Segoe UI', sans-serif;
+    }
+
+    [data-testid="stMain"] p,
+    [data-testid="stMain"] li,
+    [data-testid="stMain"] label,
+    [data-testid="stMain"] span,
+    [data-testid="stMain"] small {
+        color: var(--bio-text) !important;
+    }
+
+    [data-testid="stMain"] h1 {
+        color: var(--bio-navy) !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.5px;
+        padding-bottom: 0.6rem;
+        border-bottom: 4px solid;
+        border-image: linear-gradient(90deg, #0a3552, #0e7490 45%, #14b8a6 75%, rgba(20, 184, 166, 0)) 1;
+    }
+    [data-testid="stMain"] h2 {
+        color: var(--bio-navy) !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stMain"] h3,
+    [data-testid="stMain"] h4,
+    [data-testid="stMain"] h5 {
+        color: var(--bio-teal) !important;
+        font-weight: 700 !important;
+    }
+
+    [data-testid="stMain"] [data-testid="stWidgetLabel"] p {
+        color: var(--bio-navy) !important;
+        font-weight: 600;
+        font-size: 0.92rem;
+    }
+    [data-testid="stCaptionContainer"] * {
+        color: var(--bio-muted) !important;
+    }
+
+    /* ---------- Separadores ---------- */
+    hr {
+        border: none !important;
+        height: 2px !important;
+        background: linear-gradient(90deg, rgba(14, 116, 144, 0.55), rgba(20, 184, 166, 0.22), rgba(20, 184, 166, 0)) !important;
+        margin: 1.6rem 0 !important;
+    }
+
+    /* ---------- Métricas ---------- */
+    [data-testid="stMetric"] {
+        background: var(--bio-card);
+        border: 1px solid var(--bio-border);
+        border-left: 6px solid var(--bio-aqua);
+        border-radius: 14px;
+        padding: 1rem 1.2rem;
+        box-shadow: var(--bio-shadow);
+    }
+    [data-testid="stMain"] [data-testid="stMetricLabel"] * {
+        color: var(--bio-muted) !important;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    [data-testid="stMain"] [data-testid="stMetricValue"] * {
+        color: var(--bio-navy) !important;
+        font-weight: 800;
+    }
+
+    /* ---------- Mensajes (info / éxito / advertencia / error) ---------- */
+    [data-testid="stAlert"] {
+        border-radius: 14px;
+        box-shadow: 0 4px 14px rgba(10, 53, 82, 0.07);
+        border: 1px solid transparent;
+    }
+    [data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]) {
+        background: #e2f2f8;
+        border-color: #b4dcea;
+        border-left: 6px solid #0e7490;
+    }
+    [data-testid="stAlert"]:has([data-testid="stAlertContentSuccess"]) {
+        background: #e3f6ea;
+        border-color: #b3e2c6;
+        border-left: 6px solid #16a34a;
+    }
+    [data-testid="stAlert"]:has([data-testid="stAlertContentWarning"]) {
+        background: #fff3d9;
+        border-color: #f2d79b;
+        border-left: 6px solid #e8a009;
+    }
+    [data-testid="stAlert"]:has([data-testid="stAlertContentError"]) {
+        background: #fde7e7;
+        border-color: #f2b4b4;
+        border-left: 6px solid #dc2626;
+    }
+    [data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]) *,
+    [data-testid="stAlert"]:has([data-testid="stAlertContentSuccess"]) *,
+    [data-testid="stAlert"]:has([data-testid="stAlertContentWarning"]) *,
+    [data-testid="stAlert"]:has([data-testid="stAlertContentError"]) * {
+        color: var(--bio-text) !important;
+    }
+
+    /* ---------- Pestañas ---------- */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 6px;
+        background: var(--bio-card);
+        padding: 6px;
+        border-radius: 14px;
+        border: 1px solid var(--bio-border);
+        box-shadow: var(--bio-shadow);
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: auto;
+        padding: 0.55rem 1.15rem;
+        border-radius: 10px;
+        background: transparent;
+        color: var(--bio-muted) !important;
+        font-weight: 600;
+        transition: background 0.2s ease, color 0.2s ease;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        background: var(--bio-soft);
+        color: var(--bio-teal) !important;
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #0e7490, #14b8a6) !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 12px rgba(14, 116, 144, 0.35);
+    }
+    .stTabs [data-baseweb="tab-highlight"],
+    .stTabs [data-baseweb="tab-border"] {
+        display: none;
+    }
+    .stTabs [data-baseweb="tab-panel"] {
+        padding-top: 1.2rem;
+    }
+
+    /* ---------- Botones ---------- */
+    .stButton > button,
+    .stDownloadButton > button,
+    [data-testid="stFormSubmitButton"] > button {
+        border-radius: 12px;
+        font-weight: 700;
+        padding: 0.6rem 1.2rem;
+        border: 1.5px solid var(--bio-teal);
+        background: #ffffff;
+        color: var(--bio-teal) !important;
+        box-shadow: 0 2px 8px rgba(10, 53, 82, 0.08);
+        transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    .stButton > button:hover,
+    .stDownloadButton > button:hover,
+    [data-testid="stFormSubmitButton"] > button:hover {
+        background: var(--bio-soft);
+        border-color: var(--bio-aqua);
+        color: var(--bio-navy) !important;
+        box-shadow: 0 6px 16px rgba(10, 53, 82, 0.16);
+        transform: translateY(-2px);
+    }
+    .stButton > button[kind="primary"],
+    [data-testid="stBaseButton-primary"],
+    [data-testid="stBaseButton-primaryFormSubmit"],
+    button[kind="primaryFormSubmit"] {
+        background: linear-gradient(135deg, #0a3552 0%, #0e7490 55%, #14b8a6 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        box-shadow: 0 6px 16px rgba(14, 116, 144, 0.35);
+    }
+    .stButton > button[kind="primary"]:hover,
+    [data-testid="stBaseButton-primary"]:hover,
+    [data-testid="stBaseButton-primaryFormSubmit"]:hover,
+    button[kind="primaryFormSubmit"]:hover {
+        filter: brightness(1.1);
+        color: #ffffff !important;
+        box-shadow: 0 10px 22px rgba(14, 116, 144, 0.45);
+    }
+    .stButton > button:disabled,
+    .stDownloadButton > button:disabled {
+        opacity: 0.55;
+        transform: none;
+    }
+
+    /* ---------- Campos de entrada ---------- */
+    [data-baseweb="input"],
+    [data-baseweb="textarea"],
+    [data-baseweb="select"] > div {
+        background: #ffffff !important;
+        border-radius: 10px !important;
+        border: 1.5px solid var(--bio-border) !important;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    [data-baseweb="base-input"] {
+        background: #ffffff !important;
+        border-radius: 10px !important;
+    }
+    [data-baseweb="input"]:focus-within,
+    [data-baseweb="textarea"]:focus-within,
+    [data-baseweb="select"] > div:focus-within {
+        border-color: var(--bio-aqua) !important;
+        box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.2);
+    }
+    [data-testid="stMain"] input,
+    [data-testid="stMain"] textarea {
+        color: var(--bio-text) !important;
+        -webkit-text-fill-color: var(--bio-text) !important;
+    }
+    [data-testid="stMain"] input:disabled {
+        color: var(--bio-muted) !important;
+        -webkit-text-fill-color: var(--bio-muted) !important;
+    }
+    [data-testid="stMain"] [data-baseweb="select"] * {
+        color: var(--bio-text) !important;
+    }
+    [data-baseweb="popover"] ul,
+    [data-baseweb="menu"] {
+        background: #ffffff !important;
+        border-radius: 12px;
+    }
+    [data-baseweb="popover"] li,
+    [data-baseweb="popover"] li * {
+        color: var(--bio-text) !important;
+    }
+    [data-baseweb="popover"] li:hover,
+    [data-baseweb="popover"] li[aria-selected="true"] {
+        background: var(--bio-soft) !important;
+    }
+
+    /* ---------- Formularios ---------- */
+    [data-testid="stForm"] {
+        background: var(--bio-card);
+        border: 1px solid var(--bio-border);
+        border-radius: 16px;
+        padding: 1.5rem 1.6rem;
+        box-shadow: var(--bio-shadow);
+    }
+
+    /* ---------- Tablas, gráficas e imágenes ---------- */
+    [data-testid="stDataFrame"] {
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid var(--bio-border);
+        box-shadow: var(--bio-shadow);
+    }
+    [data-testid="stVegaLiteChart"],
+    [data-testid="stArrowVegaLiteChart"] {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 1rem;
+        border: 1px solid var(--bio-border);
+        box-shadow: var(--bio-shadow);
+    }
+    [data-testid="stImage"] img {
+        border-radius: 14px;
+        border: 1px solid var(--bio-border);
+        box-shadow: var(--bio-shadow);
+    }
+    [data-testid="stSpinner"] * {
+        color: var(--bio-teal) !important;
+    }
+
+    /* ---------- Barra lateral ---------- */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(185deg, #0a3552 0%, #0c4a6b 52%, #0e7490 100%) !important;
+        border-right: none;
+        box-shadow: 6px 0 24px rgba(10, 53, 82, 0.25);
+    }
+    [data-testid="stSidebar"] > div:first-child {
+        background: transparent !important;
+    }
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] h4,
+    [data-testid="stSidebar"] h5,
+    [data-testid="stSidebar"] h6 {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] li,
+    [data-testid="stSidebar"] small,
+    [data-testid="stSidebar"] span {
+        color: #e3f2f8 !important;
+    }
+    [data-testid="stSidebar"] strong {
+        color: #ffffff !important;
+    }
+    [data-testid="stSidebar"] code {
+        background: rgba(255, 255, 255, 0.16) !important;
+        color: #7ff3e0 !important;
+        border-radius: 8px;
+        padding: 0.15rem 0.55rem;
+        font-weight: 700;
+    }
+    [data-testid="stSidebar"] hr {
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.05)) !important;
+    }
+    [data-testid="stSidebar"] .stButton > button {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1.5px solid rgba(255, 255, 255, 0.55);
+        color: #ffffff !important;
+        box-shadow: none;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(255, 255, 255, 0.22);
+        border-color: #ffffff;
+        color: #ffffff !important;
+    }
+    [data-testid="stSidebar"] .stButton > button[kind="primary"],
+    [data-testid="stSidebar"] [data-testid="stBaseButton-primary"] {
+        background: linear-gradient(135deg, #14b8a6, #5eead4) !important;
+        color: #06303f !important;
+        border: none !important;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+    }
+    [data-testid="stSidebar"] .stButton > button[kind="primary"]:hover,
+    [data-testid="stSidebar"] [data-testid="stBaseButton-primary"]:hover {
+        color: #06303f !important;
+        filter: brightness(1.06);
+    }
+    [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border: 2px dashed rgba(255, 255, 255, 0.45) !important;
+        border-radius: 14px !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stFileUploaderDropzoneInstructions"] * {
+        color: #e3f2f8 !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stFileUploaderFile"] * {
+        color: #e3f2f8 !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button {
+        background: #ffffff !important;
+        color: var(--bio-navy) !important;
+        border: none !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button * {
+        color: var(--bio-navy) !important;
+    }
+
+    /* ---------- Texto interno de botones (hereda el color del botón) ---------- */
+    [data-testid="stMain"] button *,
+    [data-testid="stSidebar"] .stButton > button * {
+        color: inherit !important;
+    }
+
+    /* ---------- Detalles ---------- */
+    ::selection { background: #14b8a6; color: #ffffff; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: #dcebf1; }
+    ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #0e7490, #14b8a6); border-radius: 10px; }
+    </style>
+"""
+st.markdown(estilos_personalizados, unsafe_allow_html=True)
 
 # =========================================================
 # PANTALLA DE LOGIN MULTI-ROL
@@ -96,7 +486,6 @@ if not st.session_state.autenticado:
                 st.error(f"Error de conexión: {e}")
     st.stop()
 
-
 # =========================================================
 # BARRA LATERAL COMÚN (CERRAR SESIÓN)
 # =========================================================
@@ -109,9 +498,7 @@ if st.sidebar.button("🔴 Cerrar Sesión", use_container_width=True):
     st.session_state.operador_registrado = False
     st.session_state.estudio_procesado = False
     st.rerun()
-
 st.sidebar.divider()
-
 
 # =========================================================
 # 1. ROL: OPERADOR (GESTIÓN DE USUARIOS)
@@ -133,7 +520,7 @@ if st.session_state.rol == "operador":
                 ape = st.text_input("Apellido")
                 ci = st.text_input("Cédula de Identidad (CI)")
                 rol_sel = st.selectbox("Rol Asignado", ["ecografista", "revisor", "operador"])
-                
+            
             if st.form_submit_button("Guardar Usuario"):
                 if nom and ape and usr and pwd and ci:
                     try:
@@ -151,7 +538,7 @@ if st.session_state.rol == "operador":
                         st.error(f"Error al registrar: {e}")
                 else:
                     st.warning("Completa todos los campos.")
-                    
+    
     with tab_gestionar:
         st.markdown("### Listado y Edición de Usuarios")
         try:
@@ -191,7 +578,7 @@ if st.session_state.rol == "operador":
                             conn.commit()
                             st.success("✅ ¡Datos del usuario actualizados correctamente!")
                             st.rerun()
-                            
+                
                 with sub_tab2:
                     st.warning(" Esta acción eliminará el usuario permanentemente.")
                     if st.button(" Eliminar este Usuario", type="primary"):
@@ -203,11 +590,8 @@ if st.session_state.rol == "operador":
                 st.info("No hay usuarios editables registrados.")
             cur.close()
             conn.close()
-        except Exception as e:
-            st.error(f"Error: {e}")
-
+        except Exception as e: st.error(f"Error: {e}")
     st.stop()
-
 
 # =========================================================
 # MOTOR MATEMÁTICO DE CURVAS CONTINUAS (HADLOCK)
@@ -267,7 +651,7 @@ def evaluar_diagnostico_fetal(pef_str, eg_str):
         peso_g = float(''.join(filter(str.isdigit, str(pef_str))))
     except:
         peso_g = 1500
-        
+    
     semanas, dias = parse_edad_gestacional(eg_str)
     p10, p50, p90 = calcular_percentiles_hadlock(semanas, dias)
     
@@ -280,9 +664,8 @@ def evaluar_diagnostico_fetal(pef_str, eg_str):
     else:
         tipo = "AEG"
         texto = f"Peso estimado: {peso_g}g. Para {semanas} semanas y {dias} días, se sitúa entre P10 ({p10}g) y P90 ({p90}g). Diagnóstico: AEG (Adecuado para la Edad Gestacional). Crecimiento normal."
-        
+    
     return tipo, texto, p10, p50, p90, peso_g, semanas, dias
-
 
 # =========================================================
 # FUNCIÓN GENERADORA DE PDF CON DOBLE FIRMA Y DIAGNÓSTICO
@@ -302,7 +685,7 @@ def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci
     if medico_revisor and medico_revisor.strip():
         pdf.cell(0, 6, f"MÉDICO REVISOR: {medico_revisor}", ln=True)
     pdf.cell(0, 6, f"Paciente: {paci_nombre}", ln=True)
-    pdf.cell(0, 6, f"Edad: {paci_edad}  |  Sexo: {paci_sexo}  |  Modalidad: {modalidad}", ln=True)
+    pdf.cell(0, 6, f"Edad: {paci_edad} | Sexo: {paci_sexo} | Modalidad: {modalidad}", ln=True)
     pdf.cell(0, 6, f"Fecha de Estudio: {paci_fecha}", ln=True)
     pdf.cell(0, 6, f"Fecha de Revisión: {datetime.now().strftime('%d/%m/%Y')}", ln=True)
     pdf.ln(5)
@@ -322,11 +705,11 @@ def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci
     pdf.cell(90, 6, f"LF: {lf:.1f} mm" if lf else "LF: --", ln=True)
     pdf.ln(2)
     pdf.set_font("helvetica", 'B', 11)
-    pdf.cell(0, 6, f"Peso Estimado (PEF): {pef}  |  Edad Gestacional (EG): {eg}", ln=True)
+    pdf.cell(0, 6, f"Peso Estimado (PEF): {pef} | Edad Gestacional (EG): {eg}", ln=True)
     pdf.ln(3)
     
     pdf.set_font("helvetica", 'B', 11)
-    pdf.cell(0, 6, "Evaluación Percentilar y Crecimiento Fetal (Hadlock Contínuo):", ln=True)
+    pdf.cell(0, 6, f"Evaluación Percentilar y Crecimiento Fetal (Hadlock Contínuo):", ln=True)
     pdf.set_font("helvetica", '', 10)
     pdf.multi_cell(0, 5, diag_percentil)
     pdf.ln(4)
@@ -357,7 +740,6 @@ def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci
     pdf.set_font("helvetica", '', 11)
     pdf.multi_cell(0, 6, conclusiones)
     return bytes(pdf.output())
-
 
 # =========================================================
 # 2. ROL: MÉDICO REVISOR (HISTORIAL, CURVAS CONTINUAS, WHATSAPP)
@@ -408,7 +790,7 @@ if st.session_state.rol == "revisor":
                         st.warning(f" **DIAGNÓSTICO CLÍNICO: GEG**\n\n{texto_diag}")
                     else:
                         st.success(f" **DIAGNÓSTICO CLÍNICO: AEG**\n\n{texto_diag}")
-                        
+                    
                     st.divider()
                     st.write(f" **Gráfica de Registro del Percentil de Peso Neonatal - Ubicación del Paciente (Semana {sem_eval}.{dias_eval}):**")
                     
@@ -429,7 +811,7 @@ if st.session_state.rol == "revisor":
                         chart_data.append({"Semanas": w, "Peso": p10_t, "Percentil": "P10 (Mínimo)"})
                         chart_data.append({"Semanas": w, "Peso": p50_t, "Percentil": "P50 (Mediana)"})
                         chart_data.append({"Semanas": w, "Peso": p90_t, "Percentil": "P90 (Máximo)"})
-                        
+                    
                     df_curves = pd.DataFrame(chart_data)
                     
                     # Líneas de las curvas continuas
@@ -444,8 +826,7 @@ if st.session_state.rol == "revisor":
                     
                     # Punto del paciente actual
                     df_pac_point = pd.DataFrame([{
-                        'Semanas': sem_eval + (dias_eval / 7.0),
-                        'Peso': peso_g,
+                        'Semanas': sem_eval + (dias_eval / 7.0), 'Peso': peso_g,
                         'Etiqueta': f"Paciente: {ev_pac} ({peso_g}g)"
                     }])
                     
@@ -457,15 +838,15 @@ if st.session_state.rol == "revisor":
                     
                     st.altair_chart(base_curves + point_patient, use_container_width=True)
                     st.caption("")
+                
+                st.divider()
+                st.subheader(" Resumen General de Estudios Registrados")
+                st.metric("Total de Estudios en el Sistema", len(df_revisor))
+                st.write("Distribución de estudios por Edad Gestacional:")
+                if 'edad_gestacional' in df_revisor.columns:
+                    conteo_eg = df_revisor['edad_gestacional'].value_counts()
+                    st.bar_chart(conteo_eg)
                     
-                    st.divider()
-                    st.subheader(" Resumen General de Estudios Registrados")
-                    st.metric("Total de Estudios en el Sistema", len(df_revisor))
-                    st.write("Distribución de estudios por Edad Gestacional:")
-                    if 'edad_gestacional' in df_revisor.columns:
-                        conteo_eg = df_revisor['edad_gestacional'].value_counts()
-                        st.bar_chart(conteo_eg)
-
             with tab_descarga:
                 st.subheader(" Generación de PDF")
                 
@@ -489,7 +870,7 @@ if st.session_state.rol == "revisor":
                     nombre_revisor_input = st.text_input("Ingrese su Nombre y Apellido (Médico Revisor):", value=f"Dr. {st.session_state.usuario_actual}")
                     
                     # Campo para número de WhatsApp con prefijo fijo 591
-                    st.markdown("#####  Envío por WhatsApp")
+                    st.markdown("##### Envío por WhatsApp")
                     col_w1, col_w2 = st.columns([1, 4])
                     with col_w1:
                         st.text_input("Prefijo", value="591", disabled=True)
@@ -500,7 +881,6 @@ if st.session_state.rol == "revisor":
                     
                     if st.button(" Generar PDF", type="primary"):
                         _, diag_pdf_text, _, _, _, _, _, _ = evaluar_diagnostico_fetal(e_pef, e_eg)
-
                         pdf_revisado_bytes = generar_pdf(
                             medico_ecografista=e_op,
                             medico_revisor=f"Dr. {nombre_revisor_input}",
@@ -524,7 +904,6 @@ if st.session_state.rol == "revisor":
                         
                         st.session_state.pdf_revisado_listo = pdf_revisado_bytes
                         st.success(" ¡Reporte PDF generado!")
-
                     if 'pdf_revisado_listo' in st.session_state:
                         st.download_button(
                             label=" Descargar Archivo PDF",
@@ -544,14 +923,12 @@ if st.session_state.rol == "revisor":
             st.info("No hay estudios registrados en el sistema.")
     except Exception as e:
         st.error(f"Error al cargar el panel de revisión: {e}")
-        
+    
     st.stop()
-
 
 # =========================================================
 # 3. ROL: MÉDICO ECOGRAFISTA (CARGA DICOM, IA Y REPORTE)
 # =========================================================
-
 if not st.session_state.operador_registrado:
     st.title(" Datos del Ecografista")
     with st.form("form_ecografista_datos"):
@@ -585,14 +962,13 @@ def guardar_estudio_en_bd(op_nom, op_ape, op_ci, pac_nom, fecha_est, dbp, cc, ca
         val_cc = float(cc) if cc is not None else None
         val_ca = float(ca) if ca is not None else None
         val_lf = float(lf) if lf is not None else None
-
         img_h_bytes = cv2.imencode('.png', cv2.cvtColor(img_h, cv2.COLOR_RGB2BGR))[1].tobytes() if img_h is not None else None
         img_b_bytes = cv2.imencode('.png', cv2.cvtColor(img_b, cv2.COLOR_RGB2BGR))[1].tobytes() if img_b is not None else None
 
         sql = """
-            INSERT INTO estudios_ecograficos 
-            (operador_nombre, operador_ci, paciente_nombre, fecha_estudio, dbp, cc, ca, lf, peso_fetal, edad_gestacional, fecha_probable_parto, observaciones, conclusiones, img_head, img_body, pdf_generado, fecha_revision, pdf_bytes) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO estudios_ecograficos 
+        (operador_nombre, operador_ci, paciente_nombre, fecha_estudio, dbp, cc, ca, lf, peso_fetal, edad_gestacional, fecha_probable_parto, observaciones, conclusiones, img_head, img_body, pdf_generado, fecha_revision, pdf_bytes) 
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         operador_completo = f"Dr. {op_nom} {op_ape}"
         cur.execute(sql, (operador_completo, op_ci, pac_nom, fecha_est, val_dbp, val_cc, val_ca, val_lf, pef, eg, fpp, obs, conc, img_h_bytes, img_b_bytes, "reporte_biometria_fetal.pdf", fecha_revision_exacta, psycopg2.Binary(pdf_bytes)))
@@ -681,8 +1057,7 @@ def calcular_fpp(fecha_estudio_str, sem, dias):
         dias_restantes = 280 - dias_embarazo_actual
         fecha_fpp = fecha_estudio + timedelta(days=dias_restantes)
         return fecha_fpp.strftime("%d/%m/%Y")
-    except:
-        return "--"
+    except: return "--"
 
 # PROCESAMIENTO DICOM E IA
 if archivos_subidos and procesar_btn:
@@ -702,97 +1077,102 @@ if archivos_subidos and procesar_btn:
 
             res_head = model_head(img_limpia, conf=0.10, verbose=False)
             res_body = model_body(img_limpia, conf=0.10, verbose=False)
+
             s_head = max([float(b.conf[0]) for b in res_head[0].boxes]) if res_head[0].masks is not None and len(res_head[0].boxes) > 0 else 0
             s_body = sum([float(b.conf[0]) for b in res_body[0].boxes]) if res_body[0].masks is not None and len(res_body[0].boxes) > 0 else 0
+
             candidatos.append({'nombre': file.name, 'bytes': bytes_data, 's_head': s_head, 's_body': s_body})
 
-    if candidatos:
-        cand_cabeza = [c for c in candidatos if c['s_head'] > 0.20]
-        mejor_cabeza = max(cand_cabeza, key=lambda x: x['s_head']) if cand_cabeza else None
-        cand_cuerpo = [c for c in candidatos if c['s_body'] > 0.10]
-        if mejor_cabeza and len(cand_cuerpo) > 1:
-            cand_cuerpo = [c for c in cand_cuerpo if c['nombre'] != mejor_cabeza['nombre']]
-        mejor_cuerpo = max(cand_cuerpo, key=lambda x: x['s_body']) if cand_cuerpo else None
+        if candidatos:
+            cand_cabeza = [c for c in candidatos if c['s_head'] > 0.20]
+            mejor_cabeza = max(cand_cabeza, key=lambda x: x['s_head']) if cand_cabeza else None
 
-        val_dbp, val_cc, val_ca, val_lf = None, None, None, None
-        img_head_res, img_body_res = None, None
+            cand_cuerpo = [c for c in candidatos if c['s_body'] > 0.10]
+            if mejor_cabeza and len(cand_cuerpo) > 1:
+                cand_cuerpo = [c for c in cand_cuerpo if c['nombre'] != mejor_cabeza['nombre']]
+            mejor_cuerpo = max(cand_cuerpo, key=lambda x: x['s_body']) if cand_cuerpo else None
 
-        if mejor_cabeza:
-            img_orig, mm_per_px, _ = leer_dicom_bytes(mejor_cabeza['bytes'])
-            img = limpiar_marcas_amarillas(img_orig)
-            res_h = model_head(img, conf=0.25, verbose=False)
-            if res_h[0].masks is not None:
-                idx_best = np.argmax([float(b.conf[0]) for b in res_h[0].boxes])
-                pts = np.int32(res_h[0].masks.xy[idx_best])
-                if len(pts) >= 5:
-                    ellipse = cv2.fitEllipse(pts)
-                    (xc, yc), (d1, d2), angle = ellipse
-                    eje_mayor, eje_menor = max(d1, d2), min(d1, d2)
-                    val_dbp = eje_menor * mm_per_px
-                    a, b = (eje_mayor / 2) * mm_per_px, (eje_menor / 2) * mm_per_px
-                    h = ((a - b) ** 2) / ((a + b) ** 2)
-                    val_cc = np.pi * (a + b) * (1 + (3 * h) / (10 + np.sqrt(4 - 3 * h)))
-                    
-                    cv2.ellipse(img, ellipse, (255, 0, 0), 2)
-                    angle_rad = math.radians(angle)
-                    cos_a, sin_a = math.cos(angle_rad), math.sin(angle_rad)
-                    x1, y1 = int(xc + (eje_menor / 2) * cos_a), int(yc + (eje_menor / 2) * sin_a)
-                    x2, y2 = int(xc - (eje_menor / 2) * cos_a), int(yc - (eje_menor / 2) * sin_a)
-                    cv2.line(img, (x1, y1), (x2, y2), (0, 255, 255), 2)
-                    cv2.putText(img, f"DBP: {val_dbp:.1f}mm", (int(xc)-40, int(yc)-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
-                    cv2.putText(img, f"CC: {val_cc:.1f}mm", (int(xc)-40, int(yc)+20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
-                    img_head_res = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            val_dbp, val_cc, val_ca, val_lf = None, None, None, None
+            img_head_res, img_body_res = None, None
 
-        if mejor_cuerpo:
-            img_orig, mm_per_px, _ = leer_dicom_bytes(mejor_cuerpo['bytes'])
-            img = limpiar_marcas_amarillas(img_orig)
-            res_b = model_body(img, conf=0.10, verbose=False)
-            if res_b[0].masks is not None:
-                for mask, box in zip(res_b[0].masks.xy, res_b[0].boxes):
-                    cls_name = model_body.names[int(box.cls[0])]
-                    pts = np.int32(mask)
-                    rect = cv2.minAreaRect(pts)
-                    es_femur = any(k in cls_name.lower() for k in ['lf', 'femur', 'fl']) or (max(rect[1]) / (min(rect[1]) + 1e-5)) > 2.5
-                    if es_femur:
-                        pts_flat = pts.reshape(-1, 2)
-                        diff = pts_flat[:, np.newaxis, :] - pts_flat[np.newaxis, :, :]
-                        idx1, idx2 = np.unravel_index(np.argmax(np.sum(diff ** 2, axis=-1)), (len(pts), len(pts)))
-                        p1, p2 = tuple(map(int, pts_flat[idx1])), tuple(map(int, pts_flat[idx2]))
-                        val_lf = math.sqrt(((p2[0] - p1[0]) ** 2) + ((p2[1] - p1[1]) ** 2)) * mm_per_px
-                        cv2.line(img, p1, p2, (0, 255, 255), 2)
-                        cv2.putText(img, f"LF: {val_lf:.1f}mm", (p1[0], max(0, p1[1]-15)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,255), 2)
-                    else:
-                        if len(pts) >= 5:
-                            ellipse = cv2.fitEllipse(pts)
-                            (xc, yc), (d1, d2), _ = ellipse
-                            eje_mayor, eje_menor = max(d1, d2), min(d1, d2)
-                            a, b = (eje_mayor / 2) * mm_per_px, (eje_menor / 2) * mm_per_px
-                            h = ((a - b) ** 2) / ((a + b) ** 2)
-                            val_ca = np.pi * (a + b) * (1 + (3 * h) / (10 + np.sqrt(4 - 3 * h)))
-                            cv2.ellipse(img, ellipse, (0, 255, 0), 2)
-                            cv2.putText(img, f"CA: {val_ca:.1f}mm", (int(xc)-40, int(yc)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+            if mejor_cabeza:
+                img_orig, mm_per_px, _ = leer_dicom_bytes(mejor_cabeza['bytes'])
+                img = limpiar_marcas_amarillas(img_orig)
+                res_h = model_head(img, conf=0.25, verbose=False)
+                if res_h[0].masks is not None:
+                    idx_best = np.argmax([float(b.conf[0]) for b in res_h[0].boxes])
+                    pts = np.int32(res_h[0].masks.xy[idx_best])
+                    if len(pts) >= 5:
+                        ellipse = cv2.fitEllipse(pts)
+                        (xc, yc), (d1, d2), angle = ellipse
+                        eje_mayor, eje_menor = max(d1, d2), min(d1, d2)
+
+                        val_dbp = eje_menor * mm_per_px
+                        a, b = (eje_mayor / 2) * mm_per_px, (eje_menor / 2) * mm_per_px
+                        h = ((a - b) ** 2) / ((a + b) ** 2)
+                        val_cc = np.pi * (a + b) * (1 + (3 * h) / (10 + np.sqrt(4 - 3 * h)))
+                        
+                        cv2.ellipse(img, ellipse, (255, 0, 0), 2)
+                        angle_rad = math.radians(angle)
+                        cos_a, sin_a = math.cos(angle_rad), math.sin(angle_rad)
+                        x1, y1 = int(xc + (eje_menor / 2) * cos_a), int(yc + (eje_menor / 2) * sin_a)
+                        x2, y2 = int(xc - (eje_menor / 2) * cos_a), int(yc - (eje_menor / 2) * sin_a)
+                        cv2.line(img, (x1, y1), (x2, y2), (0, 255, 255), 2)
+                        cv2.putText(img, f"DBP: {val_dbp:.1f}mm", (int(xc)-40, int(yc)-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
+                        cv2.putText(img, f"CC: {val_cc:.1f}mm", (int(xc)-40, int(yc)+20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
+                img_head_res = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+            if mejor_cuerpo:
+                img_orig, mm_per_px, _ = leer_dicom_bytes(mejor_cuerpo['bytes'])
+                img = limpiar_marcas_amarillas(img_orig)
+                res_b = model_body(img, conf=0.10, verbose=False)
+                if res_b[0].masks is not None:
+                    for mask, box in zip(res_b[0].masks.xy, res_b[0].boxes):
+                        cls_name = model_body.names[int(box.cls[0])]
+                        pts = np.int32(mask)
+                        rect = cv2.minAreaRect(pts)
+                        es_femur = any(k in cls_name.lower() for k in ['lf', 'femur', 'fl']) or (max(rect[1]) / (min(rect[1]) + 1e-5)) > 2.5
+
+                        if es_femur:
+                            pts_flat = pts.reshape(-1, 2)
+                            diff = pts_flat[:, np.newaxis, :] - pts_flat[np.newaxis, :, :]
+                            idx1, idx2 = np.unravel_index(np.argmax(np.sum(diff ** 2, axis=-1)), (len(pts), len(pts)))
+                            p1, p2 = tuple(map(int, pts_flat[idx1])), tuple(map(int, pts_flat[idx2]))
+                            val_lf = math.sqrt(((p2[0] - p1[0]) ** 2) + ((p2[1] - p1[1]) ** 2)) * mm_per_px
+                            cv2.line(img, p1, p2, (0, 255, 255), 2)
+                            cv2.putText(img, f"LF: {val_lf:.1f}mm", (p1[0], max(0, p1[1]-15)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,255), 2)
+                        else:
+                            if len(pts) >= 5:
+                                ellipse = cv2.fitEllipse(pts)
+                                (xc, yc), (d1, d2), _ = ellipse
+                                eje_mayor, eje_menor = max(d1, d2), min(d1, d2)
+                                a, b = (eje_mayor / 2) * mm_per_px, (eje_menor / 2) * mm_per_px
+                                h = ((a - b) ** 2) / ((a + b) ** 2)
+                                val_ca = np.pi * (a + b) * (1 + (3 * h) / (10 + np.sqrt(4 - 3 * h)))
+                                cv2.ellipse(img, ellipse, (0, 255, 0), 2)
+                                cv2.putText(img, f"CA: {val_ca:.1f}mm", (int(xc)-40, int(yc)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
                 img_body_res = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        pef_res, eg_res, sem, dias = calcular_biometria_fetal(val_dbp, val_cc, val_ca, val_lf)
-        fpp_calculada = calcular_fpp(paci_fecha, sem, dias)
-        
-        plantilla_conclusiones = (
-            f"1) Embarazo de {eg_res} x ECO (+/- 21 días)\n"
-            f"2) Presentación: Cefálica \n"
-            f"3) Feto único vivo, sexo: Femenino / Masculino / No visible\n"
-            f"4) Líquido Amniótico: Normohidramnios\n"
-            f"5) FPP (Fecha Probable de Parto): {fpp_calculada}"
-        )
+            pef_res, eg_res, sem, dias = calcular_biometria_fetal(val_dbp, val_cc, val_ca, val_lf)
+            fpp_calculada = calcular_fpp(paci_fecha, sem, dias)
+            
+            plantilla_conclusiones = (
+                f"1) Embarazo de {eg_res} x ECO (+/- 21 días)\n"
+                f"2) Presentación: Cefálica \n"
+                f"3) Feto único vivo, sexo: Femenino / Masculino / No visible\n"
+                f"4) Líquido Amniótico: Normohidramnios\n"
+                f"5) FPP (Fecha Probable de Parto): {fpp_calculada}"
+            )
 
-        st.session_state.update({
-            'estudio_procesado': True, 'paci_nombre': paci_nombre, 'paci_id': paci_id, 
-            'paci_fecha': paci_fecha, 'paci_edad': paci_edad, 'paci_sexo': paci_sexo, 'modalidad': modalidad,
-            'val_dbp': val_dbp, 'val_cc': val_cc, 'val_ca': val_ca, 'val_lf': val_lf,
-            'pef_res': pef_res, 'eg_res': eg_res, 'img_head_res': img_head_res, 'img_body_res': img_body_res,
-            'plantilla_conclusiones': plantilla_conclusiones,
-            'eg_semanas': sem, 'eg_dias': dias,
-            'estudio_guardado_exito': False
-        })
+            st.session_state.update({
+                'estudio_procesado': True, 'paci_nombre': paci_nombre, 'paci_id': paci_id, 
+                'paci_fecha': paci_fecha, 'paci_edad': paci_edad, 'paci_sexo': paci_sexo, 'modalidad': modalidad,
+                'val_dbp': val_dbp, 'val_cc': val_cc, 'val_ca': val_ca, 'val_lf': val_lf,
+                'pef_res': pef_res, 'eg_res': eg_res, 'img_head_res': img_head_res, 'img_body_res': img_body_res,
+                'plantilla_conclusiones': plantilla_conclusiones,
+                'eg_semanas': sem, 'eg_dias': dias,
+                'estudio_guardado_exito': False
+            })
 
 # INTERFAZ DE RESULTADOS DEL ECOGRAFISTA
 if st.session_state.estudio_procesado:
@@ -805,7 +1185,6 @@ if st.session_state.estudio_procesado:
     col_p3.info(f" Fecha: {ss.paci_fecha}\n\nModalidad: {ss.modalidad}")
 
     st.divider()
-
     st.subheader("Resultados de Biometría")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("DBP", f"{ss.val_dbp:.1f} mm" if ss.val_dbp else "--")
@@ -820,7 +1199,6 @@ if st.session_state.estudio_procesado:
         if ss.img_body_res is not None: st.image(ss.img_body_res, use_container_width=True)
 
     st.divider()
-
     col_izq, col_der = st.columns(2)
     
     with col_izq:
