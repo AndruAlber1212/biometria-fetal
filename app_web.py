@@ -72,7 +72,7 @@ st.markdown(hide_menu_style, unsafe_allow_html=True)
 # PANTALLA DE LOGIN MULTI-ROL
 # =========================================================
 if not st.session_state.autenticado:
-    st.title("🔐 Acceso al Sistema - Biometría Fetal")
+    st.title("Acceso al Sistema - Biometría Fetal")
     col1, _ = st.columns([1, 2])
     with col1:
         u = st.text_input("Usuario")
@@ -100,8 +100,8 @@ if not st.session_state.autenticado:
 # =========================================================
 # BARRA LATERAL COMÚN (CERRAR SESIÓN)
 # =========================================================
-st.sidebar.markdown(f"👤 **Usuario:** {st.session_state.usuario_actual}")
-st.sidebar.markdown(f"🔑 **Rol:** `{st.session_state.rol.upper()}`")
+st.sidebar.markdown(f" **Usuario:** {st.session_state.usuario_actual}")
+st.sidebar.markdown(f" **Rol:** `{st.session_state.rol.upper()}`")
 if st.sidebar.button("🔴 Cerrar Sesión", use_container_width=True):
     st.session_state.autenticado = False
     st.session_state.rol = None
@@ -117,17 +117,17 @@ st.sidebar.divider()
 # 1. ROL: OPERADOR (GESTIÓN DE USUARIOS)
 # =========================================================
 if st.session_state.rol == "operador":
-    st.title("⚙️ Panel de Administración - Operador")
+    st.title(" Panel de Administración - Operador")
     st.subheader("Gestión de Personal y Cuentas de Acceso")
     
-    tab_crear, tab_gestionar = st.tabs(["➕ Registrar Nuevo Usuario", "✏️ Modificar / Eliminar Usuarios"])
+    tab_crear, tab_gestionar = st.tabs(["➕ Registrar Nuevo Usuario", " Modificar / Eliminar Usuarios"])
     
     with tab_crear:
         with st.form("form_crear_usuario"):
             c1, c2 = st.columns(2)
             with c1:
                 nom = st.text_input("Nombre")
-                usr = st.text_input("Nombre de Usuario (Login)")
+                usr = st.text_input("Nombre de Usuario")
                 pwd = st.text_input("Contraseña", type="password")
             with c2:
                 ape = st.text_input("Apellido")
@@ -193,8 +193,8 @@ if st.session_state.rol == "operador":
                             st.rerun()
                             
                 with sub_tab2:
-                    st.warning("⚠️ Esta acción eliminará el usuario permanentemente.")
-                    if st.button("🔴 Eliminar este Usuario", type="primary"):
+                    st.warning(" Esta acción eliminará el usuario permanentemente.")
+                    if st.button(" Eliminar este Usuario", type="primary"):
                         cur.execute("DELETE FROM usuarios WHERE id = %s", (id_sel,))
                         conn.commit()
                         st.success("Usuario eliminado.")
@@ -363,8 +363,8 @@ def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci
 # 2. ROL: MÉDICO REVISOR (HISTORIAL, CURVAS CONTINUAS, WHATSAPP)
 # =========================================================
 if st.session_state.rol == "revisor":
-    st.title("📊 Panel de Médico Revisor - Estadísticas y Curvas de Percentiles")
-    st.markdown("Consulte el historial de estudios, analice las curvas obstétricas reales y gestione el envío rápido por WhatsApp.")
+    st.title(" Panel de Médico Revisor ")
+    st.markdown("Consulte el historial de estudios.")
     
     try:
         conn = conectar_db()
@@ -377,18 +377,18 @@ if st.session_state.rol == "revisor":
         conn.close()
         
         if not df_revisor.empty:
-            tab_tabla, tab_stats, tab_descarga = st.tabs(["📋 Historial de Estudios", "📈 Curvas de Percentiles Reales", "📥 Descarga y WhatsApp"])
+            tab_tabla, tab_stats, tab_descarga = st.tabs(["Historial de Estudios", "Curvas de Percentiles", "Descarga"])
             
             with tab_tabla:
                 st.subheader("Historial General de Estudios Clínicos")
                 st.dataframe(df_revisor, use_container_width=True)
                 
             with tab_stats:
-                st.subheader("📈 Curvas Obstétricas de Crecimiento Fetal (Hadlock)")
-                st.write("Seleccione un estudio registrado para visualizar su ubicación exacta dentro de las líneas de crecimiento estándar:")
+                st.subheader("Curvas Obstétricas de Crecimiento Fetal ")
+                st.write("Seleccione un estudio registrado para visualizar el crecimiento estándar:")
                 
                 opciones_eval = {f"Estudio #{e[0]} - {e[2]} (EG: {e[4]})": e for e in estudios_completos}
-                sel_eval_key = st.selectbox("Seleccione estudio para análisis en gráfica:", list(opciones_eval.keys()))
+                sel_eval_key = st.selectbox("Seleccione un estudio para el análisis:", list(opciones_eval.keys()))
                 
                 if sel_eval_key:
                     ev_datos = opciones_eval[sel_eval_key]
@@ -403,14 +403,14 @@ if st.session_state.rol == "revisor":
                     tipo_diag, texto_diag, p10_val, p50_val, p90_val, peso_g, sem_eval, dias_eval = evaluar_diagnostico_fetal(ev_pef_str, ev_eg)
                     
                     if tipo_diag == "PEG":
-                        st.error(f"⚠️ **DIAGNÓSTICO CLÍNICO: PEG**\n\n{texto_diag}")
+                        st.error(f" **DIAGNÓSTICO CLÍNICO: PEG**\n\n{texto_diag}")
                     elif tipo_diag == "GEG":
-                        st.warning(f"⚠️ **DIAGNÓSTICO CLÍNICO: GEG**\n\n{texto_diag}")
+                        st.warning(f" **DIAGNÓSTICO CLÍNICO: GEG**\n\n{texto_diag}")
                     else:
-                        st.success(f"✅ **DIAGNÓSTICO CLÍNICO: AEG**\n\n{texto_diag}")
+                        st.success(f" **DIAGNÓSTICO CLÍNICO: AEG**\n\n{texto_diag}")
                         
                     st.divider()
-                    st.write(f"📊 **Gráfica de Curvas Continuas (Semanas 20 a 42) - Ubicación del Paciente (Semana {sem_eval}.{dias_eval}):**")
+                    st.write(f" **Gráfica de Registro del Percentil de Peso Neonatal - Ubicación del Paciente (Semana {sem_eval}.{dias_eval}):**")
                     
                     # Construir DataFrame completo con las curvas para todas las semanas de la 20 a la 42 (estilo imagen de referencia)
                     tabla_completa_hadlock = {
@@ -439,7 +439,7 @@ if st.session_state.rol == "revisor":
                         color=alt.Color('Percentil:N', scale=alt.Scale(
                             domain=['P10 (Mínimo)', 'P50 (Mediana)', 'P90 (Máximo)'],
                             range=['#2ca02c', '#1f77b4', '#d62728']
-                        ), legend=alt.Legend(title="Curvas Hadlock"))
+                        ), legend=alt.Legend(title="Curvas"))
                     )
                     
                     # Punto del paciente actual
@@ -456,10 +456,10 @@ if st.session_state.rol == "revisor":
                     )
                     
                     st.altair_chart(base_curves + point_patient, use_container_width=True)
-                    st.caption("♦ Las líneas continuas representan las curvas obstétricas universales (P10 verde, P50 azul, P90 rojo). El rombo morado indica la posición exacta del feto evaluado.")
+                    st.caption("")
                     
                     st.divider()
-                    st.subheader("📈 Resumen General de Estudios Registrados")
+                    st.subheader(" Resumen General de Estudios Registrados")
                     st.metric("Total de Estudios en el Sistema", len(df_revisor))
                     st.write("Distribución de estudios por Edad Gestacional:")
                     if 'edad_gestacional' in df_revisor.columns:
@@ -467,7 +467,7 @@ if st.session_state.rol == "revisor":
                         st.bar_chart(conteo_eg)
 
             with tab_descarga:
-                st.subheader("📥 Generación de PDF con Validación, Doble Firma y Envío por WhatsApp")
+                st.subheader(" Generación de PDF")
                 
                 opciones_estudios = {f"Estudio #{e[0]} - Paciente: {e[2]} (Ecografista: {e[1]})": e for e in estudios_completos}
                 
@@ -489,16 +489,16 @@ if st.session_state.rol == "revisor":
                     nombre_revisor_input = st.text_input("Ingrese su Nombre y Apellido (Médico Revisor):", value=f"Dr. {st.session_state.usuario_actual}")
                     
                     # Campo para número de WhatsApp con prefijo fijo 591
-                    st.markdown("##### 📲 Envío rápido por WhatsApp (Bolivia)")
+                    st.markdown("#####  Envío por WhatsApp")
                     col_w1, col_w2 = st.columns([1, 4])
                     with col_w1:
                         st.text_input("Prefijo", value="591", disabled=True)
                     with col_w2:
-                        telefono_local = st.text_input("Número de celular (8 dígitos):", placeholder="70000000")
+                        telefono_local = st.text_input("Número de celular:", placeholder="70000000")
                     
                     telefono_wsp = f"591{telefono_local.strip()}" if telefono_local.strip() else ""
                     
-                    if st.button("📄 Generar PDF Validado con Doble Firma", type="primary"):
+                    if st.button(" Generar PDF", type="primary"):
                         _, diag_pdf_text, _, _, _, _, _, _ = evaluar_diagnostico_fetal(e_pef, e_eg)
 
                         pdf_revisado_bytes = generar_pdf(
@@ -523,11 +523,11 @@ if st.session_state.rol == "revisor":
                         )
                         
                         st.session_state.pdf_revisado_listo = pdf_revisado_bytes
-                        st.success("✅ ¡Reporte PDF con doble firma generado con éxito!")
+                        st.success(" ¡Reporte PDF generado!")
 
                     if 'pdf_revisado_listo' in st.session_state:
                         st.download_button(
-                            label="📥 Descargar Archivo PDF Final Validado",
+                            label=" Descargar Archivo PDF",
                             data=st.session_state.pdf_revisado_listo,
                             file_name=f"Reporte_DobleFirma_Estudio_{e_id}.pdf",
                             mime="application/pdf",
@@ -537,7 +537,7 @@ if st.session_state.rol == "revisor":
                         if telefono_local and len(telefono_local.strip()) >= 8:
                             msg_wsp = f"Hola, le escribimos del centro médico. Su reporte de biometría fetal del paciente {e_pac} ha sido validado. Por favor descargue el PDF adjunto."
                             url_whatsapp = f"https://wa.me/{telefono_wsp}?text={msg_wsp.replace(' ', '%20')}"
-                            st.markdown(f'<a href="{url_whatsapp}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">💬 Abrir Chat de WhatsApp para Enviar Reporte</button></a>', unsafe_allow_html=True)
+                            st.markdown(f'<a href="{url_whatsapp}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">💬 Abrir Chat de WhatsApp</button></a>', unsafe_allow_html=True)
                 else:
                     st.info("No hay estudios disponibles para revisar.")
         else:
@@ -553,7 +553,7 @@ if st.session_state.rol == "revisor":
 # =========================================================
 
 if not st.session_state.operador_registrado:
-    st.title("📋 Datos Profesionales del Ecografista")
+    st.title(" Datos del Ecografista")
     with st.form("form_ecografista_datos"):
         nombres_op = st.text_input("Nombres")
         apellidos_op = st.text_input("Apellidos")
@@ -571,9 +571,9 @@ if not st.session_state.operador_registrado:
     st.stop()
 
 st.sidebar.markdown(f"**Dr.(a):** {st.session_state.operador_nombres} {st.session_state.operador_apellidos}")
-st.sidebar.header("📁 Carga de Archivos")
+st.sidebar.header(" Carga de Archivos")
 archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
-procesar_btn = st.sidebar.button("🚀 Procesar Estudio Biométrico", type="primary", use_container_width=True)
+procesar_btn = st.sidebar.button(" Procesar Estudio", type="primary", use_container_width=True)
 
 def guardar_estudio_en_bd(op_nom, op_ape, op_ci, pac_nom, fecha_est, dbp, cc, ca, lf, pef, eg, fpp, obs, conc, img_h, img_b, pdf_bytes):
     try:
@@ -604,7 +604,7 @@ def guardar_estudio_en_bd(op_nom, op_ape, op_ci, pac_nom, fecha_est, dbp, cc, ca
         st.error(f"Error al guardar en BD: {e}")
         return False
 
-st.title("🩺 Sistema de Biometría Fetal - Análisis Clínico")
+st.title(" Analisis de Biometría Fetal")
 
 @st.cache_resource
 def cargar_modelos():
@@ -798,15 +798,15 @@ if archivos_subidos and procesar_btn:
 if st.session_state.estudio_procesado:
     ss = st.session_state
     
-    st.success("✅ Datos clínicos extraídos con éxito.")
+    st.success("Datos extraídos con éxito.")
     col_p1, col_p2, col_p3 = st.columns(3)
     col_p1.info(f"Paciente: {ss.paci_nombre}\n\nEdad: {ss.paci_edad}")
     col_p2.info(f"ID: {ss.paci_id}\n\nSexo: {ss.paci_sexo}")
-    col_p3.info(f"📅 Fecha: {ss.paci_fecha}\n\nModalidad: {ss.modalidad}")
+    col_p3.info(f" Fecha: {ss.paci_fecha}\n\nModalidad: {ss.modalidad}")
 
     st.divider()
 
-    st.subheader("📏 Resultados de Biometría")
+    st.subheader("Resultados de Biometría")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("DBP", f"{ss.val_dbp:.1f} mm" if ss.val_dbp else "--")
     c2.metric("CC", f"{ss.val_cc:.1f} mm" if ss.val_cc else "--")
@@ -824,7 +824,7 @@ if st.session_state.estudio_procesado:
     col_izq, col_der = st.columns(2)
     
     with col_izq:
-        st.subheader("📝 Observaciones Médicas")
+        st.subheader("Observaciones Médicas")
         audio_bytes = audio_recorder(text="Grabar audio", icon_size="2x")
         texto_transcrito = ""
         
@@ -840,7 +840,7 @@ if st.session_state.estudio_procesado:
         observaciones = st.text_area("Texto de Observaciones:", value=texto_transcrito, height=150)
 
     with col_der:
-        st.subheader("📋 Conclusión Ecográfica")
+        st.subheader(" Conclusión Ecográfica")
         conclusiones_texto = st.text_area("Conclusiones para el PDF:", value=ss.plantilla_conclusiones, height=150)
 
     st.divider()
@@ -881,7 +881,7 @@ if st.session_state.estudio_procesado:
     st.divider()
     
     # BOTÓN EXPLÍCITO DE GUARDADO PARA EL ECOGRAFISTA
-    if st.button("💾 Guardar Estudio y Enviar Reporte Final a Base de Datos", type="primary", use_container_width=True):
+    if st.button(" Guardar Estudio", type="primary", use_container_width=True):
         guardado_ok = guardar_estudio_en_bd(
             op_nom=st.session_state.get('operador_nombres', ''),
             op_ape=st.session_state.get('operador_apellidos', ''),
@@ -902,4 +902,4 @@ if st.session_state.estudio_procesado:
             pdf_bytes=pdf_bytes
         )
         if guardado_ok:
-            st.success("✅ ¡Estudio, audio, conclusiones editadas e imágenes guardadas exitosamente! El médico revisor ya puede acceder al reporte completo.")
+            st.success("¡Estudio guardado exitosamente!")
