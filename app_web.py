@@ -377,7 +377,7 @@ if st.session_state.rol == "revisor":
         conn.close()
         
         if not df_revisor.empty:
-            tab_tabla, tab_stats, tab_descarga = st.tabs(["Historial de Estudios", "Curvas de Percentiles", "Descarga"])
+            tab_tabla, tab_stats, tab_descarga = st.tabs(["Historial de Estudios", "Gráficas", "Descarga"])
             
             with tab_tabla:
                 st.subheader("Historial General de Estudios Clínicos")
