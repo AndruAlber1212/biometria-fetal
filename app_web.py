@@ -146,7 +146,7 @@ if st.session_state.rol == "operador":
                         conn.commit()
                         cur.close()
                         conn.close()
-                        st.success(f"✅ Usuario '{usr}' creado exitosamente.")
+                        st.success(f" Usuario '{usr}' creado exitosamente.")
                     except Exception as e:
                         st.error(f"Error al registrar: {e}")
                 else:
@@ -189,7 +189,7 @@ if st.session_state.rol == "operador":
                         if st.form_submit_button("Actualizar Cambios"):
                             cur.execute("UPDATE usuarios SET nombre=%s, apellido=%s, usuario=%s, password=%s, ci=%s, rol=%s WHERE id=%s", (en, ea, eu, ep, eci, er, id_sel))
                             conn.commit()
-                            st.success("✅ ¡Datos del usuario actualizados correctamente!")
+                            st.success("¡Datos del usuario actualizados correctamente!")
                             st.rerun()
                             
                 with sub_tab2:
