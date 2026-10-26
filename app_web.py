@@ -54,13 +54,15 @@ if 'operador_registrado' not in st.session_state:
 if 'estudio_procesado' not in st.session_state:
     st.session_state.estudio_procesado = False
 
-# ESTILOS VISUALES
+# ESTILOS VISUALES Y OCULTAR MARCA DE AGUA / LOGOS DE STREAMLIT
 hide_menu_style = """
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .stApp [data-testid="stToolbar"] {display: none;}
+    [data-testid="stStatusWidget"] {visibility: hidden;}
+    .viewerBadge_container__1QSob {display: none !important;}
     </style>
 """
 st.markdown(hide_menu_style, unsafe_allow_html=True)
@@ -208,7 +210,7 @@ if st.session_state.rol == "operador":
 
 
 # =========================================================
-# MOTOR MATEMÁTICO DE INTERPOLACIÓN CONTINUA (HADLOCK)
+# MOTOR MATEMÁTICO DE CURVAS CONTINUAS (HADLOCK)
 # =========================================================
 def parse_edad_gestacional(eg_str):
     nums = re.findall(r'\d+', str(eg_str))
@@ -358,11 +360,11 @@ def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci
 
 
 # =========================================================
-# 2. ROL: MÉDICO REVISOR (HISTORIAL LIMPIO, PERCENTILES, DOBLE FIRMA Y WHATSAPP)
+# 2. ROL: MÉDICO REVISOR (HISTORIAL, CURVAS CONTINUAS, WHATSAPP)
 # =========================================================
 if st.session_state.rol == "revisor":
-    st.title("📊 Panel de Médico Revisor - Estadísticas y Percentiles")
-    st.markdown("Consulte el historial de estudios, analice los percentiles y gestione la validación y envío rápido por WhatsApp.")
+    st.title("📊 Panel de Médico Revisor - Estadísticas y Curvas de Percentiles")
+    st.markdown("Consulte el historial de estudios, analice las curvas obstétricas reales y gestione el envío rápido por WhatsApp.")
     
     try:
         conn = conectar_db()
@@ -375,18 +377,18 @@ if st.session_state.rol == "revisor":
         conn.close()
         
         if not df_revisor.empty:
-            tab_tabla, tab_stats, tab_descarga = st.tabs(["📋 Historial de Estudios", "📈 Estadísticas & Percentiles", "📥 Descarga y WhatsApp"])
+            tab_tabla, tab_stats, tab_descarga = st.tabs(["📋 Historial de Estudios", "📈 Curvas de Percentiles Reales", "📥 Descarga y WhatsApp"])
             
             with tab_tabla:
                 st.subheader("Historial General de Estudios Clínicos")
                 st.dataframe(df_revisor, use_container_width=True)
                 
             with tab_stats:
-                st.subheader("📈 Análisis y Comparación con Curvas de Percentiles (Hadlock Contínuo)")
-                st.write("Seleccione un estudio registrado para evaluar su posición exacta mediante interpolación matemática:")
+                st.subheader("📈 Curvas Obstétricas de Crecimiento Fetal (Hadlock)")
+                st.write("Seleccione un estudio registrado para visualizar su ubicación exacta dentro de las líneas de crecimiento estándar:")
                 
                 opciones_eval = {f"Estudio #{e[0]} - {e[2]} (EG: {e[4]})": e for e in estudios_completos}
-                sel_eval_key = st.selectbox("Seleccione estudio para análisis percentilar:", list(opciones_eval.keys()))
+                sel_eval_key = st.selectbox("Seleccione estudio para análisis en gráfica:", list(opciones_eval.keys()))
                 
                 if sel_eval_key:
                     ev_datos = opciones_eval[sel_eval_key]
@@ -398,42 +400,63 @@ if st.session_state.rol == "revisor":
                     col_e2.markdown(f"**Peso Estimado (PEF):**\n### {ev_pef_str}")
                     col_e3.markdown(f"**Edad Gestacional:**\n### {ev_eg}")
                     
-                    tipo_diag, texto_diag, p10, p50, p90, peso_g, sem_eval, dias_eval = evaluar_diagnostico_fetal(ev_pef_str, ev_eg)
+                    tipo_diag, texto_diag, p10_val, p50_val, p90_val, peso_g, sem_eval, dias_eval = evaluar_diagnostico_fetal(ev_pef_str, ev_eg)
                     
                     if tipo_diag == "PEG":
-                        st.error(f"⚠️ **DIAGNÓSTICO CLÍNICO: PEG (Pequeño para la Edad Gestacional)**\n\n{texto_diag}")
+                        st.error(f"⚠️ **DIAGNÓSTICO CLÍNICO: PEG**\n\n{texto_diag}")
                     elif tipo_diag == "GEG":
-                        st.warning(f"⚠️ **DIAGNÓSTICO CLÍNICO: GEG (Grande para la Edad Gestacional)**\n\n{texto_diag}")
+                        st.warning(f"⚠️ **DIAGNÓSTICO CLÍNICO: GEG**\n\n{texto_diag}")
                     else:
-                        st.success(f"✅ **DIAGNÓSTICO CLÍNICO: AEG (Adecuado para la Edad Gestacional)**\n\n{texto_diag}")
+                        st.success(f"✅ **DIAGNÓSTICO CLÍNICO: AEG**\n\n{texto_diag}")
                         
                     st.divider()
-                    st.write(f"📊 **Gráfica de Líneas Continuas de Crecimiento Fetal (Semana {sem_eval} + {dias_eval} días):**")
+                    st.write(f"📊 **Gráfica de Curvas Continuas (Semanas 20 a 42) - Ubicación del Paciente (Semana {sem_eval}.{dias_eval}):**")
                     
-                    df_curva = pd.DataFrame({
-                        'Percentil': ['P10 (Mínimo)', 'P50 (Mediana)', 'P90 (Máximo)'],
-                        'Peso_g': [p10, p50, p90]
-                    })
+                    # Construir DataFrame completo con las curvas para todas las semanas de la 20 a la 42 (estilo imagen de referencia)
+                    tabla_completa_hadlock = {
+                        20: (300, 345, 400), 21: (350, 400, 460), 22: (410, 465, 530), 
+                        23: (475, 540, 615), 24: (550, 630, 715), 25: (640, 735, 835), 
+                        26: (740, 850, 970), 27: (850, 985, 1120), 28: (980, 1135, 1290), 
+                        29: (1120, 1300, 1480), 30: (1280, 1485, 1695), 31: (1450, 1690, 1930), 
+                        32: (1650, 1915, 2190), 33: (1860, 2160, 2470), 34: (2080, 2420, 2770), 
+                        35: (2310, 2690, 3080), 36: (2540, 2970, 3400), 37: (2780, 3250, 3730), 
+                        38: (3010, 3525, 4050), 39: (3220, 3780, 4350), 40: (3410, 4010, 4620), 
+                        41: (3580, 4220, 4870), 42: (3720, 4400, 5080)
+                    }
                     
-                    df_paciente = pd.DataFrame({
-                        'Percentil': ['Peso del Feto (IA)'],
-                        'Peso_g': [peso_g]
-                    })
+                    chart_data = []
+                    for w, (p10_t, p50_t, p90_t) in tabla_completa_hadlock.items():
+                        chart_data.append({"Semanas": w, "Peso": p10_t, "Percentil": "P10 (Mínimo)"})
+                        chart_data.append({"Semanas": w, "Peso": p50_t, "Percentil": "P50 (Mediana)"})
+                        chart_data.append({"Semanas": w, "Peso": p90_t, "Percentil": "P90 (Máximo)"})
+                        
+                    df_curves = pd.DataFrame(chart_data)
                     
-                    base = alt.Chart(df_curva).encode(
-                        x=alt.X('Percentil:N', sort=['P10 (Mínimo)', 'P50 (Mediana)', 'P90 (Máximo)'], title="Rangos de Referencia Hadlock (Contínuo)"),
-                        y=alt.Y('Peso_g:Q', title="Peso (g)")
+                    # Líneas de las curvas continuas
+                    base_curves = alt.Chart(df_curves).mark_line(strokeWidth=2.5).encode(
+                        x=alt.X('Semanas:Q', title="Edad Gestacional (Semanas)", scale=alt.Scale(domain=[20, 42])),
+                        y=alt.Y('Peso:Q', title="Peso Fetal (gramos)", scale=alt.Scale(domain=[200, 5200])),
+                        color=alt.Color('Percentil:N', scale=alt.Scale(
+                            domain=['P10 (Mínimo)', 'P50 (Mediana)', 'P90 (Máximo)'],
+                            range=['#2ca02c', '#1f77b4', '#d62728']
+                        ), legend=alt.Legend(title="Curvas Hadlock"))
                     )
                     
-                    lines = base.mark_line(color='skyblue', strokeWidth=3)
-                    points_ref = base.mark_point(color='skyblue', size=100)
-                    point_ia = alt.Chart(df_paciente).mark_point(color='red', size=300, shape='diamond').encode(
-                        x=alt.X('Percentil:N'),
-                        y=alt.Y('Peso_g:Q')
+                    # Punto del paciente actual
+                    df_pac_point = pd.DataFrame([{
+                        'Semanas': sem_eval + (dias_eval / 7.0),
+                        'Peso': peso_g,
+                        'Etiqueta': f"Paciente: {ev_pac} ({peso_g}g)"
+                    }])
+                    
+                    point_patient = alt.Chart(df_pac_point).mark_point(size=350, shape='diamond', filled=True, color='purple').encode(
+                        x='Semanas:Q',
+                        y='Peso:Q',
+                        tooltip=['Etiqueta', 'Semanas', 'Peso']
                     )
                     
-                    st.altair_chart(lines + points_ref + point_ia, use_container_width=True)
-                    st.caption("♦ El rombo rojo indica la ubicación exacta interpolada del peso calculado por la IA respecto a las curvas contínuas de referencia.")
+                    st.altair_chart(base_curves + point_patient, use_container_width=True)
+                    st.caption("♦ Las líneas continuas representan las curvas obstétricas universales (P10 verde, P50 azul, P90 rojo). El rombo morado indica la posición exacta del feto evaluado.")
                     
                     st.divider()
                     st.subheader("📈 Resumen General de Estudios Registrados")
@@ -465,8 +488,15 @@ if st.session_state.rol == "revisor":
                         
                     nombre_revisor_input = st.text_input("Ingrese su Nombre y Apellido (Médico Revisor):", value=f"Dr. {st.session_state.usuario_actual}")
                     
-                    # Campo para número de WhatsApp
-                    telefono_wsp = st.text_input("Número de Teléfono / WhatsApp (Ej: 59170000000):", placeholder="591...")
+                    # Campo para número de WhatsApp con prefijo fijo 591
+                    st.markdown("##### 📲 Envío rápido por WhatsApp (Bolivia)")
+                    col_w1, col_w2 = st.columns([1, 4])
+                    with col_w1:
+                        st.text_input("Prefijo", value="591", disabled=True)
+                    with col_w2:
+                        telefono_local = st.text_input("Número de celular (8 dígitos):", placeholder="70000000")
+                    
+                    telefono_wsp = f"591{telefono_local.strip()}" if telefono_local.strip() else ""
                     
                     if st.button("📄 Generar PDF Validado con Doble Firma", type="primary"):
                         _, diag_pdf_text, _, _, _, _, _, _ = evaluar_diagnostico_fetal(e_pef, e_eg)
@@ -504,9 +534,9 @@ if st.session_state.rol == "revisor":
                             type="secondary"
                         )
                         
-                        if telefono_wsp:
-                            msg_wsp = f"Hola, le escribimos del centro médico. Su reporte de biometría fetal del paciente {e_pac} ha sido validado. Por favor adjunte el PDF descargado."
-                            url_whatsapp = f"https://wa.me/{telefono_wsp}?text={requests_utils_quote(msg_wsp) if 'requests_utils_quote' in globals() else msg_wsp.replace(' ', '%20')}"
+                        if telefono_local and len(telefono_local.strip()) >= 8:
+                            msg_wsp = f"Hola, le escribimos del centro médico. Su reporte de biometría fetal del paciente {e_pac} ha sido validado. Por favor descargue el PDF adjunto."
+                            url_whatsapp = f"https://wa.me/{telefono_wsp}?text={msg_wsp.replace(' ', '%20')}"
                             st.markdown(f'<a href="{url_whatsapp}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">💬 Abrir Chat de WhatsApp para Enviar Reporte</button></a>', unsafe_allow_html=True)
                 else:
                     st.info("No hay estudios disponibles para revisar.")
