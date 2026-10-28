@@ -571,10 +571,10 @@ if st.session_state.rol == "revisor":
 # 3. ROL: MÉDICO ECOGRAFISTA (CARGA DICOM, IA Y REPORTE)
 # =========================================================
 
-st.sidebar.markdown(f"**Dr.(a):** {st.session_state.nombre_completo_usuario}")
-st.sidebar.header("📁 Carga de Archivos")
+
+st.sidebar.header(" Carga de Archivos")
 archivos_subidos = st.sidebar.file_uploader("Sube imágenes DICOM (.dcm)", type=["dcm"], accept_multiple_files=True)
-procesar_btn = st.sidebar.button("🚀 Procesar Estudio Biométrico", type="primary", use_container_width=True)
+procesar_btn = st.sidebar.button(" Procesar Estudio", type="primary", use_container_width=True)
 
 def guardar_estudio_en_bd(op_nom, op_ci, pac_nom, fecha_est, dbp, cc, ca, lf, pef, eg, fpp, obs, conc, img_h, img_b, pdf_bytes):
     try:
@@ -605,7 +605,7 @@ def guardar_estudio_en_bd(op_nom, op_ci, pac_nom, fecha_est, dbp, cc, ca, lf, pe
         st.error(f"Error al guardar en BD: {e}")
         return False
 
-st.title("🩺 Sistema de Biometría Fetal - Análisis Clínico")
+st.title(" Análisis de Biometría Fetal")
 
 @st.cache_resource
 def cargar_modelos():
@@ -799,15 +799,15 @@ if archivos_subidos and procesar_btn:
 if st.session_state.estudio_procesado:
     ss = st.session_state
     
-    st.success("✅ Datos clínicos extraídos con éxito.")
+    st.success(" Datos extraídos con éxito.")
     col_p1, col_p2, col_p3 = st.columns(3)
     col_p1.info(f"Paciente: {ss.paci_nombre}\n\nEdad: {ss.paci_edad}")
     col_p2.info(f"ID: {ss.paci_id}\n\nSexo: {ss.paci_sexo}")
-    col_p3.info(f"📅 Fecha: {ss.paci_fecha}\n\nModalidad: {ss.modalidad}")
+    col_p3.info(f" Fecha: {ss.paci_fecha}\n\nModalidad: {ss.modalidad}")
 
     st.divider()
 
-    st.subheader("📏 Resultados de Biometría")
+    st.subheader(" Resultados de Biometría")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("DBP", f"{ss.val_dbp:.1f} mm" if ss.val_dbp else "--")
     c2.metric("CC", f"{ss.val_cc:.1f} mm" if ss.val_cc else "--")
@@ -823,7 +823,7 @@ if st.session_state.estudio_procesado:
     st.divider()
 
     # SECCIÓN DE OBSERVACIONES Y MICRÓFONO ESTABLE (JUNTO A LOS DATOS)
-    st.subheader("📝 Observaciones Médicas y Conclusiones")
+    st.subheader(" Observaciones Médicas y Conclusiones")
     
     col_izq, col_der = st.columns(2)
     
@@ -850,7 +850,7 @@ if st.session_state.estudio_procesado:
     st.divider()
     
     # BOTÓN DE GUARDADO EXPLÍCITO PARA EL ECOGRAFISTA (SIN BOTÓN DE DESCARGA)
-    if st.button("💾 Guardar Estudio y Enviar Reporte a Base de Datos", type="primary", use_container_width=True):
+    if st.button(" Guardar Estudio", type="primary", use_container_width=True):
         _, diag_str_ecog, _, _, _, _, _, _ = evaluar_diagnostico_fetal(ss.pef_res, ss.eg_res)
         
         pdf_bytes_generado = generar_pdf(
@@ -893,4 +893,4 @@ if st.session_state.estudio_procesado:
             pdf_bytes=pdf_bytes_generado
         )
         if guardado_ok:
-            st.success("✅ ¡Estudio, audio, conclusiones editadas e imágenes guardadas exitosamente en la base de datos! El médico revisor ya puede acceder al reporte completo con los cambios realizados.")
+            st.success(" ¡Estudio guardado exitosamente!")
