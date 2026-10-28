@@ -366,10 +366,10 @@ def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci
     pdf.line(115, 260, 190, 260)
     
     pdf.set_xy(20, 262)
-    pdf.cell(75, 4, f"Dr(a). {medico_ecografista}", align='C', ln=False)
+    pdf.cell(75, 4, f"{medico_ecografista}", align='C', ln=False)
     pdf.set_xy(115, 262)
     rev_nom_clean = medico_revisor if medico_revisor else "Médico Revisor"
-    pdf.cell(75, 4, f"Dr(a). {rev_nom_clean}", align='C', ln=True)
+    pdf.cell(75, 4, f"Dr. {rev_nom_clean}", align='C', ln=True)
     
     pdf.set_xy(20, 266)
     pdf.cell(75, 4, "MÉDICO ECOGRAFISTA", align='C', ln=False)
@@ -383,8 +383,8 @@ def generar_pdf(medico_ecografista, medico_revisor, paci_nombre, paci_edad, paci
 # 2. ROL: MÉDICO REVISOR (HISTORIAL, CURVAS CONTINUAS, WHATSAPP)
 # =========================================================
 if st.session_state.rol == "revisor":
-    st.title("📊 Panel de Médico Revisor - Estadísticas y Curvas de Percentiles")
-    st.markdown("Consulte el historial de estudios, analice las curvas obstétricas reales y gestione el envío rápido por WhatsApp.")
+    st.title(" Panel de Médico Revisor")
+    st.markdown("Consulte el historial de estudios.")
     
     try:
         conn = conectar_db()
@@ -397,18 +397,18 @@ if st.session_state.rol == "revisor":
         conn.close()
         
         if not df_revisor.empty:
-            tab_tabla, tab_stats, tab_descarga = st.tabs(["📋 Historial de Estudios", "📈 Curvas de Percentiles Reales", "📥 Descarga y WhatsApp"])
+            tab_tabla, tab_stats, tab_descarga = st.tabs([" Historial de Estudios", "Estadisticas", " Descarga"])
             
             with tab_tabla:
                 st.subheader("Historial General de Estudios Clínicos")
                 st.dataframe(df_revisor, use_container_width=True)
                 
             with tab_stats:
-                st.subheader("📈 Curvas Obstétricas de Crecimiento Fetal (Hadlock)")
-                st.write("Seleccione un estudio registrado para visualizar su ubicación exacta dentro de las líneas de crecimiento estándar:")
+                st.subheader(" Estadisticas")
+                st.write("Seleccione un estudio registrado:")
                 
                 opciones_eval = {f"Estudio #{e[0]} - {e[2]} (EG: {e[4]})": e for e in estudios_completos}
-                sel_eval_key = st.selectbox("Seleccione estudio para análisis en gráfica:", list(opciones_eval.keys()))
+                sel_eval_key = st.selectbox("Seleccione un estudio:", list(opciones_eval.keys()))
                 
                 if sel_eval_key:
                     ev_datos = opciones_eval[sel_eval_key]
@@ -423,14 +423,14 @@ if st.session_state.rol == "revisor":
                     tipo_diag, texto_diag, p10_val, p50_val, p90_val, peso_g, sem_eval, dias_eval = evaluar_diagnostico_fetal(ev_pef_str, ev_eg)
                     
                     if tipo_diag == "PEG":
-                        st.error(f"⚠️ **DIAGNÓSTICO CLÍNICO: PEG**\n\n{texto_diag}")
+                        st.error(f" **DIAGNÓSTICO CLÍNICO: PEG**\n\n{texto_diag}")
                     elif tipo_diag == "GEG":
-                        st.warning(f"⚠️ **DIAGNÓSTICO CLÍNICO: GEG**\n\n{texto_diag}")
+                        st.warning(f" **DIAGNÓSTICO CLÍNICO: GEG**\n\n{texto_diag}")
                     else:
-                        st.success(f"✅ **DIAGNÓSTICO CLÍNICO: AEG**\n\n{texto_diag}")
+                        st.success(f" **DIAGNÓSTICO CLÍNICO: AEG**\n\n{texto_diag}")
                         
                     st.divider()
-                    st.write(f"📊 **Gráfica de Curvas Continuas (Semanas 20 a 42) - Ubicación del Paciente (Semana {sem_eval}.{dias_eval}):**")
+                    st.write(f" **Percentiles (Semanas 20 a 42) - Pacinte (Semana {sem_eval}.{dias_eval}):**")
                     
                     tabla_completa_hadlock = {
                         20: (300, 345, 400), 21: (350, 400, 460), 22: (410, 465, 530), 
@@ -473,10 +473,10 @@ if st.session_state.rol == "revisor":
                     )
                     
                     st.altair_chart(base_curves + point_patient, use_container_width=True)
-                    st.caption("♦ Las líneas continuas representan las curvas obstétricas universales (P10 verde, P50 azul, P90 rojo). El rombo morado indica la posición exacta del feto evaluado.")
+                    st.caption("♦ El rombo morado indica la posición exacta del feto evaluado.")
                     
                     st.divider()
-                    st.subheader("📈 Resumen General de Estudios Registrados")
+                    st.subheader(" Resumen General de Estudios Registrados")
                     st.metric("Total de Estudios en el Sistema", len(df_revisor))
                     st.write("Distribución de estudios por Edad Gestacional:")
                     if 'edad_gestacional' in df_revisor.columns:
@@ -484,7 +484,7 @@ if st.session_state.rol == "revisor":
                         st.bar_chart(conteo_eg)
 
             with tab_descarga:
-                st.subheader("📥 Generación de PDF con Validación, Doble Firma y Envío por WhatsApp")
+                st.subheader(" Generación de PDF")
                 
                 opciones_estudios = {f"Estudio #{e[0]} - Paciente: {e[2]} (Ecografista: {e[1]})": e for e in estudios_completos}
                 
@@ -505,19 +505,19 @@ if st.session_state.rol == "revisor":
                         
                     # Nombre del Revisor extraído automáticamente del login inteligente
                     nombre_revisor_automatico = st.session_state.nombre_completo_usuario
-                    st.info(f"✍️ **Médico Revisor Firmante:** Dr(a). {nombre_revisor_automatico}")
+                    st.info(f" **Médico Revisor:** Dr. {nombre_revisor_automatico}")
                     
                     # Campo para número de WhatsApp con prefijo fijo 591
-                    st.markdown("##### 📲 Envío rápido por WhatsApp (Bolivia)")
+                    st.markdown("##### Envío por WhatsApp")
                     col_w1, col_w2 = st.columns([1, 4])
                     with col_w1:
                         st.text_input("Prefijo", value="591", disabled=True)
                     with col_w2:
-                        telefono_local = st.text_input("Número de celular (8 dígitos):", placeholder="70000000")
+                        telefono_local = st.text_input("Número de celular:", placeholder="********")
                     
                     telefono_wsp = f"591{telefono_local.strip()}" if telefono_local.strip() else ""
                     
-                    if st.button("📄 Generar PDF Validado con Doble Firma", type="primary"):
+                    if st.button(" Generar PDF", type="primary"):
                         _, diag_pdf_text, _, _, _, _, _, _ = evaluar_diagnostico_fetal(e_pef, e_eg)
 
                         pdf_revisado_bytes = generar_pdf(
@@ -542,11 +542,11 @@ if st.session_state.rol == "revisor":
                         )
                         
                         st.session_state.pdf_revisado_listo = pdf_revisado_bytes
-                        st.success("✅ ¡Reporte PDF con doble firma generado con éxito!")
+                        st.success("Reporte PDF generado con éxito")
 
                     if 'pdf_revisado_listo' in st.session_state:
                         st.download_button(
-                            label="📥 Descargar Archivo PDF Final Validado",
+                            label=" Descargar Archivo PDF",
                             data=st.session_state.pdf_revisado_listo,
                             file_name=f"Reporte_DobleFirma_Estudio_{e_id}.pdf",
                             mime="application/pdf",
@@ -554,7 +554,7 @@ if st.session_state.rol == "revisor":
                         )
                         
                         if telefono_local and len(telefono_local.strip()) >= 8:
-                            msg_wsp = f"Hola, le escribimos del centro médico. Su reporte de biometría fetal del paciente {e_pac} ha sido validado. Por favor descargue el PDF adjunto."
+                            msg_wsp = f"Reporte de biometría fetal del paciente {e_pac}."
                             url_whatsapp = f"https://wa.me/{telefono_wsp}?text={msg_wsp.replace(' ', '%20')}"
                             st.markdown(f'<a href="{url_whatsapp}" target="_blank"><button style="background-color:#25D366; color:white; padding:10px 20px; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">💬 Abrir Chat de WhatsApp para Enviar Reporte</button></a>', unsafe_allow_html=True)
                 else:
