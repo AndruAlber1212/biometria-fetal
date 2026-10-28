@@ -828,38 +828,20 @@ if st.session_state.estudio_procesado:
     col_izq, col_der = st.columns(2)
     
     with col_izq:
-        st.markdown("**Dictado por Voz (Micrófono):**")
-        st.caption("Haz clic en el micrófono para grabar y vuelve a hacer clic para detener.")
-        
-        audio_bytes = audio_recorder(text="Grabar / Detener", icon_size="2x")
+        st.subheader("Observaciones Médicas")
+        audio_bytes = audio_recorder(text="Grabar audio", icon_size="2x")
+        texto_transcrito = ""
         
         if audio_bytes:
-            audio_hash = hash(audio_bytes)
-            if ss.get('ultimo_audio_procesado') != audio_hash:
-                with st.spinner("Procesando y transcribiendo audio..."):
-                    try:
-                        import tempfile
-                        # Crear un archivo temporal seguro para el audio
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-                            tmp_file.write(audio_bytes)
-                            tmp_path = tmp_file.name
-                        
-                        r = sr.Recognizer()
-                        with sr.AudioFile(tmp_path) as source:
-                            audio_data = r.record(source)
-                            texto_transcrito = r.recognize_google(audio_data, language="es-ES")
-                            if texto_transcrito:
-                                if ss.texto_observaciones:
-                                    ss.texto_observaciones += " " + texto_transcrito
-                                else:
-                                    ss.texto_observaciones = texto_transcrito
-                                ss.ultimo_audio_procesado = audio_hash
-                                st.rerun()
-                    except Exception as e:
-                        st.error(f"No se pudo transcribir el audio. Detalle: {e}")
+            with st.spinner("Transcribiendo..."):
+                try:
+                    r = sr.Recognizer()
+                    with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
+                        texto_transcrito = r.recognize_google(r.record(source), language="es-ES")
+                except Exception:
+                    st.error("Error al transcribir.")
         
-        observaciones = st.text_area("Texto de Observaciones:", value=ss.texto_observaciones, height=150, key="obs_input_box")
-        ss.texto_observaciones = observaciones
+        observaciones = st.text_area("Texto de Observaciones:", value=texto_transcrito, height=150)
 
     with col_der:
         st.markdown("**Conclusión Ecográfica:**")
