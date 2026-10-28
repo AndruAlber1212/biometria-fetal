@@ -76,7 +76,7 @@ st.markdown(hide_menu_style, unsafe_allow_html=True)
 # PANTALLA DE LOGIN MULTI-ROL (CON EXTRACCIÓN INTELIGENTE)
 # =========================================================
 if not st.session_state.autenticado:
-    st.title("🔐 Acceso al Sistema - Biometría Fetal")
+    st.title(" Acceso al Sistema - Biometría Fetal")
     col1, _ = st.columns([1, 2])
     with col1:
         u = st.text_input("Usuario")
@@ -106,8 +106,7 @@ if not st.session_state.autenticado:
 # =========================================================
 # BARRA LATERAL COMÚN (CERRAR SESIÓN)
 # =========================================================
-st.sidebar.markdown(f"👤 **Usuario:** {st.session_state.usuario_actual}")
-st.sidebar.markdown(f"👨‍⚕️ **Médico:** {st.session_state.nombre_completo_usuario}")
+st.sidebar.markdown(f" **Usuario:** {st.session_state.usuario_actual}")
 st.sidebar.markdown(f"🔑 **Rol:** `{st.session_state.rol.upper()}`")
 if st.sidebar.button("🔴 Cerrar Sesión", use_container_width=True):
     st.session_state.autenticado = False
