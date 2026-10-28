@@ -833,14 +833,19 @@ if st.session_state.estudio_procesado:
         
         audio_bytes = audio_recorder(text="Grabar / Detener", icon_size="2x")
         
-        # Generar un identificador único para este archivo de audio para procesarlo solo una vez
         if audio_bytes:
             audio_hash = hash(audio_bytes)
             if ss.get('ultimo_audio_procesado') != audio_hash:
                 with st.spinner("Procesando y transcribiendo audio..."):
                     try:
+                        import tempfile
+                        # Crear un archivo temporal seguro para el audio
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+                            tmp_file.write(audio_bytes)
+                            tmp_path = tmp_file.name
+                        
                         r = sr.Recognizer()
-                        with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
+                        with sr.AudioFile(tmp_path) as source:
                             audio_data = r.record(source)
                             texto_transcrito = r.recognize_google(audio_data, language="es-ES")
                             if texto_transcrito:
@@ -849,9 +854,9 @@ if st.session_state.estudio_procesado:
                                 else:
                                     ss.texto_observaciones = texto_transcrito
                                 ss.ultimo_audio_procesado = audio_hash
-                                st.rerun() # Forzar actualización inmediata para mostrar el texto en pantalla
+                                st.rerun()
                     except Exception as e:
-                        st.error("No se pudo reconocer el audio. Intenta hablar más cerca del micrófono.")
+                        st.error(f"No se pudo transcribir el audio. Detalle: {e}")
         
         observaciones = st.text_area("Texto de Observaciones:", value=ss.texto_observaciones, height=150, key="obs_input_box")
         ss.texto_observaciones = observaciones
