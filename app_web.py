@@ -107,7 +107,8 @@ if not st.session_state.autenticado:
 # BARRA LATERAL COMÚN (CERRAR SESIÓN)
 # =========================================================
 st.sidebar.markdown(f" **Usuario:** {st.session_state.usuario_actual}")
-st.sidebar.markdown(f"🔑 **Rol:** `{st.session_state.rol.upper()}`")
+st.sidebar.markdown(f" **Médico:** {st.session_state.nombre_completo_usuario}")
+st.sidebar.markdown(f" **Rol:** `{st.session_state.rol.upper()}`")
 if st.sidebar.button("🔴 Cerrar Sesión", use_container_width=True):
     st.session_state.autenticado = False
     st.session_state.rol = None
@@ -124,10 +125,10 @@ st.sidebar.divider()
 # 1. ROL: OPERADOR (GESTIÓN DE USUARIOS)
 # =========================================================
 if st.session_state.rol == "operador":
-    st.title("⚙️ Panel de Administración - Operador")
+    st.title(" Panel de Administración - Operador")
     st.subheader("Gestión de Personal y Cuentas de Acceso")
     
-    tab_crear, tab_gestionar = st.tabs(["➕ Registrar Nuevo Usuario", "✏️ Modificar / Eliminar Usuarios"])
+    tab_crear, tab_gestionar = st.tabs(["➕ Registrar Nuevo Usuario", " Modificar / Eliminar Usuarios"])
     
     with tab_crear:
         with st.form("form_crear_usuario"):
@@ -153,7 +154,7 @@ if st.session_state.rol == "operador":
                         conn.commit()
                         cur.close()
                         conn.close()
-                        st.success(f"✅ Usuario '{usr}' creado exitosamente.")
+                        st.success(f" Usuario '{usr}' creado exitosamente.")
                     except Exception as e:
                         st.error(f"Error al registrar: {e}")
                 else:
@@ -196,11 +197,11 @@ if st.session_state.rol == "operador":
                         if st.form_submit_button("Actualizar Cambios"):
                             cur.execute("UPDATE usuarios SET nombre=%s, apellido=%s, usuario=%s, password=%s, ci=%s, rol=%s WHERE id=%s", (en, ea, eu, ep, eci, er, id_sel))
                             conn.commit()
-                            st.success("✅ ¡Datos del usuario actualizados correctamente!")
+                            st.success("¡Datos del usuario actualizados correctamente!")
                             st.rerun()
                             
                 with sub_tab2:
-                    st.warning("⚠️ Esta acción eliminará el usuario permanentemente.")
+                    st.warning(" Esta acción eliminará el usuario permanentemente.")
                     if st.button("🔴 Eliminar este Usuario", type="primary"):
                         cur.execute("DELETE FROM usuarios WHERE id = %s", (id_sel,))
                         conn.commit()
