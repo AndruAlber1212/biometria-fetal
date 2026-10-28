@@ -829,25 +829,29 @@ if st.session_state.estudio_procesado:
     
     with col_izq:
         st.markdown("**Dictado por Voz (Micrófono):**")
-        st.caption("Haz clic en el micrófono para empezar a grabar y vuelve a hacer clic para detener y transcribir.")
+        st.caption("Haz clic en el micrófono para grabar y vuelve a hacer clic para detener.")
         
-        # Componente de audio estable
         audio_bytes = audio_recorder(text="Grabar / Detener", icon_size="2x")
         
+        # Generar un identificador único para este archivo de audio para procesarlo solo una vez
         if audio_bytes:
-            with st.spinner("Procesando y transcribiendo audio..."):
-                try:
-                    r = sr.Recognizer()
-                    with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
-                        audio_data = r.record(source)
-                        texto_transcrito = r.recognize_google(audio_data, language="es-ES")
-                        if texto_transcrito:
-                            if ss.texto_observaciones:
-                                ss.texto_observaciones += " " + texto_transcrito
-                            else:
-                                ss.texto_observaciones = texto_transcrito
-                except Exception as e:
-                    st.error("No se pudo reconocer el audio. Intenta hablar más cerca del micrófono.")
+            audio_hash = hash(audio_bytes)
+            if ss.get('ultimo_audio_procesado') != audio_hash:
+                with st.spinner("Procesando y transcribiendo audio..."):
+                    try:
+                        r = sr.Recognizer()
+                        with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
+                            audio_data = r.record(source)
+                            texto_transcrito = r.recognize_google(audio_data, language="es-ES")
+                            if texto_transcrito:
+                                if ss.texto_observaciones:
+                                    ss.texto_observaciones += " " + texto_transcrito
+                                else:
+                                    ss.texto_observaciones = texto_transcrito
+                                ss.ultimo_audio_procesado = audio_hash
+                                st.rerun() # Forzar actualización inmediata para mostrar el texto en pantalla
+                    except Exception as e:
+                        st.error("No se pudo reconocer el audio. Intenta hablar más cerca del micrófono.")
         
         observaciones = st.text_area("Texto de Observaciones:", value=ss.texto_observaciones, height=150, key="obs_input_box")
         ss.texto_observaciones = observaciones
